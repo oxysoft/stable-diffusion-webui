@@ -3,6 +3,8 @@ stable-diffusion-webui
 
 ## Core/Plugin Refactor Progress
 
+If you wish to contribute and speed things up, this is the current state of things:
+
 - Many modules have been moved to plugins, they must be reviewed one by one and adapted into its Plugin class
 - StableDiffusionPlugin is complex and broken up into several files.
    - The processing stuff can probably stay.
