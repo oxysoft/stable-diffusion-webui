@@ -1,5 +1,4 @@
 # Stable Core
-stable-diffusion-webui 
 
 ## Core/Plugin Refactor Progress
 
