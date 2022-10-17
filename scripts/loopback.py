@@ -1,15 +1,11 @@
-import numpy as np
-from tqdm import trange
-
-import modules.scripts as scripts
+import plugins as scripts
 import gradio as gr
 
-from modules import processing, shared, sd_samplers, images
+from modules import processing, images
 from modules.processing import Processed
-from modules.sd_samplers import samplers
-from modules.shared import opts, cmd_opts, state
+from shared import opts, state
 
-class Script(scripts.Script):
+class Script(scripts.Plugin):
     def title(self):
         return "Loopback"
 

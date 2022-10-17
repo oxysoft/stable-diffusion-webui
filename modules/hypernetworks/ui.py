@@ -3,17 +3,15 @@ import os
 
 import gradio as gr
 
-import modules.textual_inversion.textual_inversion
-import modules.textual_inversion.preprocess
-from modules import sd_hijack, shared, devices
-from modules.hypernetworks import hypernetwork
+from modules import devices
+import shared
 
 
 def create_hypernetwork(name, enable_sizes):
     fn = os.path.join(shared.cmd_opts.hypernetwork_dir, f"{name}.pt")
     assert not os.path.exists(fn), f"file {fn} already exists"
 
-    hypernet = modules.hypernetworks.hypernetwork.Hypernetwork(name=name, enable_sizes=[int(x) for x in enable_sizes])
+    hypernet = plugins.StableDiffusionPlugin_hypernetworks.Hypernetwork(name=name, enable_sizes=[int(x) for x in enable_sizes])
     hypernet.save(fn)
 
     shared.reload_hypernetworks()
@@ -30,7 +28,7 @@ def train_hypernetwork(*args):
     try:
         sd_hijack.undo_optimizations()
 
-        hypernetwork, filename = modules.hypernetworks.hypernetwork.train_hypernetwork(*args)
+        hypernetwork, filename = plugins.StableDiffusionPlugin_hypernetworks.train_hypernetwork(*args)
 
         res = f"""
 Training {'interrupted' if shared.state.interrupted else 'finished'} at {hypernetwork.step} steps.

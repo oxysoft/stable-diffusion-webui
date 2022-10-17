@@ -2,15 +2,14 @@ import os
 from abc import abstractmethod
 
 import PIL
-import numpy as np
-import torch
 from PIL import Image
 
-import modules.shared
-from modules import modelloader, shared
+import shared
+from modules import shared
+import modelloader
 
 LANCZOS = (Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.LANCZOS)
-from modules.paths import models_path
+from paths import models_path
 
 
 class Upscaler:
@@ -27,13 +26,13 @@ class Upscaler:
 
     def __init__(self, create_dirs=False):
         self.mod_pad_h = None
-        self.tile_size = modules.shared.opts.ESRGAN_tile
-        self.tile_pad = modules.shared.opts.ESRGAN_tile_overlap
-        self.device = modules.shared.device
+        self.tile_size = shared.opts.ESRGAN_tile
+        self.tile_pad = shared.opts.ESRGAN_tile_overlap
+        self.device = shared.device
         self.img = None
         self.output = None
         self.scale = 1
-        self.half = not modules.shared.cmd_opts.no_half
+        self.half = not shared.cmd_opts.no_half
         self.pre_pad = 0
         self.mod_scale = None
 
@@ -90,33 +89,4 @@ class UpscalerData:
         self.scale = scale
         self.model = model
 
-
-class UpscalerNone(Upscaler):
-    name = "None"
-    scalers = []
-
-    def load_model(self, path):
-        pass
-
-    def do_upscale(self, img, selected_model=None):
-        return img
-
-    def __init__(self, dirname=None):
-        super().__init__(False)
-        self.scalers = [UpscalerData("None", None, self)]
-
-
-class UpscalerLanczos(Upscaler):
-    scalers = []
-
-    def do_upscale(self, img, selected_model=None):
-        return img.resize((int(img.width * self.scale), int(img.height * self.scale)), resample=LANCZOS)
-
-    def load_model(self, _):
-        pass
-
-    def __init__(self, dirname=None):
-        super().__init__(False)
-        self.name = "Lanczos"
-        self.scalers = [UpscalerData("Lanczos", None, self)]
 

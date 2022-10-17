@@ -3,13 +3,13 @@ import math
 import numpy as np
 import skimage
 
-import modules.scripts as scripts
+import plugins as scripts
 import gradio as gr
 from PIL import Image, ImageDraw
 
-from modules import images, processing, devices
+from modules import images
 from modules.processing import Processed, process_images
-from modules.shared import opts, cmd_opts, state
+from shared import opts, state
 
 
 # this function is taken from https://github.com/parlance-zz/g-diffuser-bot
@@ -118,7 +118,7 @@ def get_matched_noise(_np_src_image, np_mask_rgb, noise_q=1, color_variation=0.0
 
 
 
-class Script(scripts.Script):
+class Script(scripts.Plugin):
     def title(self):
         return "Outpainting mk2"
 

@@ -5,10 +5,11 @@ import sys
 import tqdm
 import time
 
-from modules import shared, images
-from modules.shared import opts, cmd_opts
+from modules import images
+import shared
+from shared import opts, cmd_opts
 if cmd_opts.deepdanbooru:
-    import modules.deepbooru as deepbooru
+    import plugins.deepbooru as deepbooru
 
 def preprocess(process_src, process_dst, process_width, process_height, process_flip, process_split, process_caption, process_caption_deepbooru=False):
     width = process_width
@@ -112,7 +113,7 @@ def sanitize_caption(base_path, original_caption, suffix):
     caption = original_caption
     for invalid_character in invalid_path_characters:
         caption = caption.replace(invalid_character, "")
-    fixed_path_length = len(base_path) + len(suffix) 
+    fixed_path_length = len(base_path) + len(suffix)
     if fixed_path_length + len(caption) <= max_path_length:
         return caption
     caption_tokens = caption.split()

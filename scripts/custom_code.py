@@ -1,10 +1,11 @@
-import modules.scripts as scripts
+import plugins as scripts
 import gradio as gr
 
 from modules.processing import Processed
-from modules.shared import opts, cmd_opts, state
+from shared import cmd_opts
 
-class Script(scripts.Script):
+
+class Script(scripts.Plugin):
 
     def title(self):
         return "Custom code"
@@ -38,5 +39,4 @@ class Script(scripts.Script):
         exec(compiled, module.__dict__)
 
         return Processed(p, *display_result_data)
-    
-    
+

@@ -9,7 +9,9 @@ import datetime
 
 from PIL import Image, PngImagePlugin
 
-from modules import shared, devices, sd_hijack, processing, sd_models
+from modules import devices, processing
+import shared
+from plugins import sd_models
 import modules.textual_inversion.dataset
 from modules.textual_inversion.learn_schedule import LearnSchedule
 
@@ -200,7 +202,7 @@ def train_embedding(embedding_name, learn_rate, data_root, log_directory, traini
         os.makedirs(images_embeds_dir, exist_ok=True)
     else:
         images_embeds_dir = None
-        
+
     cond_model = shared.sd_model.cond_stage_model
 
     shared.state.textinfo = f"Preparing dataset from {html.escape(data_root)}..."

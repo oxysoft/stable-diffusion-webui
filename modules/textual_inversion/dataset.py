@@ -8,7 +8,8 @@ from torchvision import transforms
 
 import random
 import tqdm
-from modules import devices, shared
+from modules import devices
+import shared
 import re
 
 re_tag = re.compile(r"[a-zA-Z][_\w\d()]+")

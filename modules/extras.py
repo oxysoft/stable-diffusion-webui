@@ -1,4 +1,3 @@
-import math
 import os
 
 import numpy as np
@@ -7,11 +6,13 @@ from PIL import Image
 import torch
 import tqdm
 
-from modules import processing, shared, images, devices, sd_models
-from modules.shared import opts
-import modules.gfpgan_model
-from modules.ui import plaintext_to_html
-import modules.codeformer_model
+from modules import images, devices
+import shared
+from plugins import sd_models
+from shared import opts
+import plugins.GFPGANPlugin
+from ui.ui import plaintext_to_html
+import plugins.CodeformerPlugin
 import piexif
 import piexif.helper
 import gradio as gr
@@ -49,7 +50,7 @@ def run_extras(extras_mode, resize_mode, image, image_folder, gfpgan_visibility,
         info = ""
 
         if gfpgan_visibility > 0:
-            restored_img = modules.gfpgan_model.gfpgan_fix_faces(np.array(image, dtype=np.uint8))
+            restored_img = plugins.gfpgan_model.gfpgan_fix_faces(np.array(image, dtype=np.uint8))
             res = Image.fromarray(restored_img)
 
             if gfpgan_visibility < 1.0:

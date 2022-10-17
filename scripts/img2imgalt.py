@@ -3,19 +3,14 @@ from collections import namedtuple
 import numpy as np
 from tqdm import trange
 
-import modules.scripts as scripts
+import plugins as scripts
 import gradio as gr
 
-from modules import processing, shared, sd_samplers, prompt_parser
-from modules.processing import Processed
-from modules.shared import opts, cmd_opts, state
+from modules import processing
+import shared
 
 import torch
 import k_diffusion as K
-
-from PIL import Image
-from torch import autocast
-from einops import rearrange, repeat
 
 
 def find_noise_for_image(p, cond, uncond, cfg_scale, steps):
@@ -109,7 +104,7 @@ def find_noise_for_image_sigma_adjustment(p, cond, uncond, cfg_scale, steps):
     return x / sigmas[-1]
 
 
-class Script(scripts.Script):
+class Script(scripts.Plugin):
     def __init__(self):
         self.cache = None
 
@@ -153,17 +148,17 @@ class Script(scripts.Script):
                 self.cache = Cached(rec_noise, cfg, st, lat, original_prompt, original_negative_prompt, sigma_adjustment)
 
             rand_noise = processing.create_random_tensors(p.init_latent.shape[1:], seeds=seeds, subseeds=subseeds, subseed_strength=p.subseed_strength, seed_resize_from_h=p.seed_resize_from_h, seed_resize_from_w=p.seed_resize_from_w, p=p)
-            
+
             combined_noise = ((1 - randomness) * rec_noise + randomness * rand_noise) / ((randomness**2 + (1-randomness)**2) ** 0.5)
-            
+
             sampler = sd_samplers.create_sampler_with_index(sd_samplers.samplers, p.sampler_index, p.sd_model)
 
             sigmas = sampler.model_wrap.get_sigmas(p.steps)
-            
+
             noise_dt = combined_noise - (p.init_latent / sigmas[0])
-            
+
             p.seed = p.seed + 1
-            
+
             return sampler.sample_img2img(p, p.init_latent, noise_dt, conditioning, unconditional_conditioning)
 
         p.sample = sample_extra

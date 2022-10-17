@@ -7,16 +7,14 @@ from io import StringIO
 from PIL import Image
 import numpy as np
 
-import modules.scripts as scripts
+import plugins as scripts
 import gradio as gr
 
 from modules import images
-from modules.hypernetworks import hypernetwork
-from modules.processing import process_images, Processed, get_correct_sampler
-from modules.shared import opts, cmd_opts, state
-import modules.shared as shared
-import modules.sd_samplers
-import modules.sd_models
+from modules.processing import process_images, get_correct_sampler
+from shared import opts, state
+import shared as shared
+import plugins.sd_models
 import re
 
 
@@ -58,7 +56,7 @@ def apply_order(p, x, xs):
         prompt_tmp += part
         prompt_tmp += x[idx]
     p.prompt = prompt_tmp + p.prompt
-    
+
 
 def build_samplers_dict(p):
     samplers_dict = {}
@@ -85,15 +83,15 @@ def confirm_samplers(p, xs):
 
 
 def apply_checkpoint(p, x, xs):
-    info = modules.sd_models.get_closet_checkpoint_match(x)
+    info = plugins.sd_models.get_closet_checkpoint_match(x)
     if info is None:
         raise RuntimeError(f"Unknown checkpoint: {x}")
-    modules.sd_models.reload_model_weights(shared.sd_model, info)
+    plugins.sd_models.reload_model_weights(shared.sd_model, info)
 
 
 def confirm_checkpoints(p, xs):
     for x in xs:
-        if modules.sd_models.get_closet_checkpoint_match(x) is None:
+        if plugins.sd_models.get_closet_checkpoint_match(x) is None:
             raise RuntimeError(f"Unknown checkpoint: {x}")
 
 
@@ -213,7 +211,7 @@ re_range_float = re.compile(r"\s*([+-]?\s*\d+(?:.\d*)?)\s*-\s*([+-]?\s*\d+(?:.\d
 re_range_count = re.compile(r"\s*([+-]?\s*\d+)\s*-\s*([+-]?\s*\d+)(?:\s*\[(\d+)\s*\])?\s*")
 re_range_count_float = re.compile(r"\s*([+-]?\s*\d+(?:.\d*)?)\s*-\s*([+-]?\s*\d+(?:.\d*)?)(?:\s*\[(\d+(?:.\d*)?)\s*\])?\s*")
 
-class Script(scripts.Script):
+class Script(scripts.Plugin):
     def title(self):
         return "X/Y plot"
 
@@ -227,7 +225,7 @@ class Script(scripts.Script):
         with gr.Row():
             y_type = gr.Dropdown(label="Y type", choices=[x.label for x in current_axis_options], value=current_axis_options[0].label, visible=False, type="index", elem_id="y_type")
             y_values = gr.Textbox(label="Y values", visible=False, lines=1)
-        
+
         draw_legend = gr.Checkbox(label='Draw legend', value=True)
         no_fixed_seeds = gr.Checkbox(label='Keep -1 for seeds', value=False)
 
@@ -265,7 +263,7 @@ class Script(scripts.Script):
                         start = int(mc.group(1))
                         end   = int(mc.group(2))
                         num   = int(mc.group(3)) if mc.group(3) is not None else 1
-                        
+
                         valslist_ext += [int(x) for x in np.linspace(start=start, stop=end, num=num).tolist()]
                     else:
                         valslist_ext.append(val)
@@ -287,7 +285,7 @@ class Script(scripts.Script):
                         start = float(mc.group(1))
                         end   = float(mc.group(2))
                         num   = int(mc.group(3)) if mc.group(3) is not None else 1
-                        
+
                         valslist_ext += np.linspace(start=start, stop=end, num=num).tolist()
                     else:
                         valslist_ext.append(val)
@@ -351,7 +349,7 @@ class Script(scripts.Script):
             images.save_image(processed.images[0], p.outpath_grids, "xy_grid", prompt=p.prompt, seed=processed.seed, grid=True, p=p)
 
         # restore checkpoint in case it was changed by axes
-        modules.sd_models.reload_model_weights(shared.sd_model)
+        plugins.sd_models.reload_model_weights(shared.sd_model)
 
         hypernetwork.load_hypernetwork(opts.sd_hypernetwork)
 

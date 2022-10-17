@@ -1,15 +1,11 @@
 import math
-from collections import namedtuple
-from copy import copy
-import random
 
-import modules.scripts as scripts
+import plugins as scripts
 import gradio as gr
 
 from modules import images
-from modules.processing import process_images, Processed
-from modules.shared import opts, cmd_opts, state
-import modules.sd_samplers
+from modules.processing import process_images
+from shared import opts, state
 
 
 def draw_xy_grid(xs, ys, x_label, y_label, cell):
@@ -40,7 +36,7 @@ def draw_xy_grid(xs, ys, x_label, y_label, cell):
     return first_pocessed
 
 
-class Script(scripts.Script):
+class Script(scripts.Plugin):
     def title(self):
         return "Prompt matrix"
 
