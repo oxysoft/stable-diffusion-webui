@@ -1,9 +1,17 @@
-# Stable Diffusion web UI
-A browser interface based on Gradio library for Stable Diffusion.
+# Stable Core
+stable-diffusion-webui 
 
-![](txt2img_Screenshot.png)
+## Core/Plugin Refactor Progress
 
-Check the [custom scripts](https://github.com/AUTOMATIC1111/stable-diffusion-webui/wiki/Custom-Scripts) wiki page for extra scripts developed by users.
+- Many modules have been moved to plugins, they must be reviewed one by one and adapted into its Plugin class
+- StableDiffusionPlugin is complex and broken up into several files.
+   - The processing stuff can probably stay.
+   - Sort out what is going on with the 'hijack' and 'hypernetwork' things, streamline that stuff
+- We must exorcise the calls to `shared` across every plugin
+- **Must figure out a real backend solution, not this gradio stuff**
+- **Idk yet if the options stuff is compatible with the plugin architecture and how much needs refactoring**. I think it looks good and we can ask plugins to return an options_section(), but need to verify.
+- We will probably rewrite the UI completely, old pieces can be adapted if necessary. Since we can move each plugin's UI into its on plugin file the UI will be a lot easier to improve in the future.
+- There are more modules, some are just utility functions
 
 ## Features
 [Detailed feature showcase with images](https://github.com/AUTOMATIC1111/stable-diffusion-webui/wiki/Features):
