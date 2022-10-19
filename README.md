@@ -1,6 +1,46 @@
-# Stable Core
+# stable-core
 
-## Core/Plugin Refactor Progress
+# Mission
+
+The long-term goal is to make a backend like this:
+
+    - **Jobs:**Generate some data or transform some other data.  Currently it's a simple queue. In the future it could be scaled up to allow deferring to multiple backend nodes such as a cluster of GPUs, horde, etc.
+    - **Plugins:** handle installation for models and libraries and add API/jobs to use them. CLI utility to create a named plugin and instantly start working on it.
+    - **Server/Client:**  Clients can be UIs designed for this backend, or bridge to other apps like blender nodes, kdenlive clips, effects, etc. Currently using flask with flask-sockio since it's very fast to use.
+    - **Package Manager Ecosystem:** Act as a package manager for AI, implement all your ideas and favorite models into stable-core to benefit from multiple GUIs and chain it with other community plugins, all designed for creative coding.
+    - **Instant Cloud Deploy:** runpod, vast.ai in just a few clicks. Paste in your SSH information to copy your configuration and your installation will automatically defer local jobs to the remote instance.
+    - **Multi-modal:** text, images, audio types as well. Each plugin job specifies the input and output so that we can transform the data around.
+    - **Simple:** whole backend core can be read in under in an hour.
+    - Built on tried and true AUTOMATIC1111 codebase
+
+UIs can be written as clients, I will do DearImGUI, but gradio would be cool as well for colab. 
+Each plugin clearly announces its functions and parameters, so one generic UI drawer code to render them all.
+The in/out parameters allow to create node UI to chain plugin jobs, a list macro, scripting logic, etc.
+
+## Core/Plugin Refactor Progress - 10/19
+
+The server now boots up and we can import the StableDiffusion plugin, and even instantiate it without crashing.
+The SD plugin processes are being refactored into the job system as JobParameters, which we can extend.
+The ProcessResult had too many values being copied around. Instead we are now keeping them in the JobParameters object. 
+
+So the plugin announces its capabilities: (name, function, input type, output type, parameter class)
+Its function returns one or multiple jobs, each job is created with a job param that describes this action.
+and it will work
+
+A lot of useless UI shit mixed into the backend, we're mostly deleting this code, its effortless to rewrite it.
+
+Contribution points: 
+
+- Missing a UI and the Stable Diffusion plugin is in shambles because still refactoring. A lot of the API points are missing for a good UI
+- Need to figure out sessions with connection methods like ssh or password, otherwise anyone can use if u share (lol)
+- Obviously I am trying to get the SD plugin working first with img2img and txt2img jobs, then all the upscalers are mostly the same. 
+- Should probably remove a lot of CLI arguments and use an option system instead. Too many commandline args it's a mess.
+- Need to figure out how we can get an efficient system where plugins are hosted on github and collect them for listing.
+- It would be cool to embed a CLI interface into the server but idk how to do this with flask, I'm using app.run(). 
+
+AUTOMATIC1111 is still not responding and I don't know any other way to contact him so don't know if we have him on-board. The project must be renamed to stable-core or something not stable-diffusion related.
+
+## Core/Plugin Refactor Progress - 10/18
 
 If you wish to contribute and speed things up, this is the current state of things:
 

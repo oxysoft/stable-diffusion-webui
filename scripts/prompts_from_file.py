@@ -1,6 +1,6 @@
 import math
 
-import plugins as scripts
+from core import plugins as scripts
 import gradio as gr
 
 from modules.processing import Processed, process_images

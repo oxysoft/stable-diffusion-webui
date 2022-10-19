@@ -3,7 +3,7 @@ from collections import namedtuple
 import numpy as np
 from tqdm import trange
 
-import plugins as scripts
+from core import plugins as scripts
 import gradio as gr
 
 from modules import processing
@@ -129,29 +129,29 @@ class Script(scripts.Plugin):
         def sample_extra(conditioning, unconditional_conditioning, seeds, subseeds, subseed_strength):
             lat = (p.init_latent.cpu().numpy() * 10).astype(int)
 
-            same_params = self.cache is not None and self.cache.cfg_scale == cfg and self.cache.steps == st \
-                                and self.cache.original_prompt == original_prompt \
-                                and self.cache.original_negative_prompt == original_negative_prompt \
-                                and self.cache.sigma_adjustment == sigma_adjustment
+            same_params = self.cache is not None and self.cache.cfg == cfg and self.cache.steps == st \
+                          and self.cache.original_prompt == original_prompt \
+                          and self.cache.original_negative_prompt == original_negative_prompt \
+                          and self.cache.sigma_adjustment == sigma_adjustment
             same_everything = same_params and self.cache.latent.shape == lat.shape and np.abs(self.cache.latent-lat).sum() < 100
 
             if same_everything:
                 rec_noise = self.cache.noise
             else:
                 shared.state.job_count += 1
-                cond = p.sd_model.get_learned_conditioning(p.batch_size * [original_prompt])
-                uncond = p.sd_model.get_learned_conditioning(p.batch_size * [original_negative_prompt])
+                cond = p.model.get_learned_conditioning(p.batch_size * [original_prompt])
+                uncond = p.model.get_learned_conditioning(p.batch_size * [original_negative_prompt])
                 if sigma_adjustment:
                     rec_noise = find_noise_for_image_sigma_adjustment(p, cond, uncond, cfg, st)
                 else:
                     rec_noise = find_noise_for_image(p, cond, uncond, cfg, st)
                 self.cache = Cached(rec_noise, cfg, st, lat, original_prompt, original_negative_prompt, sigma_adjustment)
 
-            rand_noise = processing.create_random_tensors(p.init_latent.shape[1:], seeds=seeds, subseeds=subseeds, subseed_strength=p.subseed_strength, seed_resize_from_h=p.seed_resize_from_h, seed_resize_from_w=p.seed_resize_from_w, p=p)
+            rand_noise = processing.create_random_tensors(p.init_latent.shape[1:], seeds=seeds, subseeds=subseeds, subseed_strength=p.subseed_pow, seed_resize_from_h=p.resize_from_h, seed_resize_from_w=p.resize_from_w, p=p)
 
             combined_noise = ((1 - randomness) * rec_noise + randomness * rand_noise) / ((randomness**2 + (1-randomness)**2) ** 0.5)
 
-            sampler = sd_samplers.create_sampler_with_index(sd_samplers.samplers, p.sampler_index, p.sd_model)
+            sampler = sd_samplers.create_sampler_with_index(sd_samplers.samplers, p.sampler_index, p.model)
 
             sigmas = sampler.model_wrap.get_sigmas(p.steps)
 
@@ -170,7 +170,7 @@ class Script(scripts.Plugin):
         p.extra_generation_params["Randomness"] = randomness
         p.extra_generation_params["Sigma Adjustment"] = sigma_adjustment
 
-        processed = processing.process_images(p)
+        processed = processing.process_job(p)
 
         return processed
 

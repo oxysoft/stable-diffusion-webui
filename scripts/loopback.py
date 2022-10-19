@@ -1,7 +1,7 @@
-import plugins as scripts
+from core import plugins as scripts
 import gradio as gr
 
-from modules import processing, images
+from modules import processing
 from modules.processing import Processed
 from shared import opts, state
 
@@ -55,7 +55,7 @@ class Script(scripts.Plugin):
 
                 state.job = f"Iteration {i + 1}/{loops}, batch {n + 1}/{batch_count}"
 
-                processed = processing.process_images(p)
+                processed = processing.process_job(p)
 
                 if initial_seed is None:
                     initial_seed = processed.seed

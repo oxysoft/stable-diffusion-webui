@@ -1,10 +1,10 @@
 import math
 
-import plugins as scripts
+from core import plugins as scripts, devicelib
 import gradio as gr
 from PIL import Image
 
-from modules import processing, images, devices
+from modules import processing
 import shared
 from modules.processing import Processed
 from shared import opts, state
@@ -12,7 +12,7 @@ from shared import opts, state
 
 class Script(scripts.Plugin):
     def title(self):
-        return "SD upscale"
+        return "StableDiffusion upscale"
 
     def show(self, is_img2img):
         return is_img2img
@@ -28,8 +28,8 @@ class Script(scripts.Plugin):
         processing.fix_seed(p)
         upscaler = shared.sd_upscalers[upscaler_index]
 
-        p.extra_generation_params["SD upscale overlap"] = overlap
-        p.extra_generation_params["SD upscale upscaler"] = upscaler.name
+        p.extra_generation_params["StableDiffusion upscale overlap"] = overlap
+        p.extra_generation_params["StableDiffusion upscale upscaler"] = upscaler.name
 
         initial_info = None
         seed = p.seed
@@ -41,7 +41,7 @@ class Script(scripts.Plugin):
         else:
             img = init_img
 
-        devices.torch_gc()
+        devicelib.torch_gc()
 
         grid = images.split_grid(img, tile_w=p.width, tile_h=p.height, overlap=overlap)
 
@@ -60,7 +60,7 @@ class Script(scripts.Plugin):
         batch_count = math.ceil(len(work) / batch_size)
         state.job_count = batch_count * upscale_count
 
-        print(f"SD upscaling will process a total of {len(work)} images tiled as {len(grid.tiles[0][2])}x{len(grid.tiles)} per upscale in a total of {state.job_count} batches.")
+        print(f"StableDiffusion upscaling will process a total of {len(work)} images tiled as {len(grid.tiles[0][2])}x{len(grid.tiles)} per upscale in a total of {state.job_count} batches.")
 
         result_images = []
         for n in range(upscale_count):
@@ -73,7 +73,7 @@ class Script(scripts.Plugin):
                 p.init_images = work[i*batch_size:(i+1)*batch_size]
 
                 state.job = f"Batch {i + 1 + n * batch_count} out of {state.job_count}"
-                processed = processing.process_images(p)
+                processed = processing.process_job(p)
 
                 if initial_info is None:
                     initial_info = processed.info

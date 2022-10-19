@@ -1,10 +1,9 @@
 import math
 
-import plugins as scripts
+from core import plugins as scripts, devicelib
 import gradio as gr
 from PIL import Image, ImageDraw
 
-from modules import images, devices
 from modules.processing import Processed, process_images
 from shared import opts, state
 
@@ -77,7 +76,7 @@ class Script(scripts.Plugin):
              mask.height - down - (mask_blur//2 if down > 0 else 0)
         ), fill="black")
 
-        devices.torch_gc()
+        devicelib.torch_gc()
 
         grid = images.split_grid(img, tile_w=p.width, tile_h=p.height, overlap=pixels)
         grid_mask = images.split_grid(mask, tile_w=p.width, tile_h=p.height, overlap=pixels)

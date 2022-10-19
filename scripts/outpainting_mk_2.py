@@ -3,11 +3,10 @@ import math
 import numpy as np
 import skimage
 
-import plugins as scripts
+from core import plugins as scripts
 import gradio as gr
 from PIL import Image, ImageDraw
 
-from modules import images
 from modules.processing import Processed, process_images
 from shared import opts, state
 

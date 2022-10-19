@@ -7,14 +7,12 @@ from io import StringIO
 from PIL import Image
 import numpy as np
 
-import plugins as scripts
+from core import plugins as scripts, plugins
 import gradio as gr
 
-from modules import images
 from modules.processing import process_images, get_correct_sampler
 from shared import opts, state
 import shared as shared
-import plugins.sd_models
 import re
 
 
@@ -26,11 +24,11 @@ def apply_field(field):
 
 
 def apply_prompt(p, x, xs):
-    if xs[0] not in p.prompt and xs[0] not in p.negative_prompt:
+    if xs[0] not in p.prompt and xs[0] not in p.promptneg:
         raise RuntimeError(f"Prompt S/R did not find {xs[0]} in prompt or negative prompt.")
 
     p.prompt = p.prompt.replace(xs[0], x)
-    p.negative_prompt = p.negative_prompt.replace(xs[0], x)
+    p.promptneg = p.promptneg.replace(xs[0], x)
 
 
 def apply_order(p, x, xs):
@@ -86,7 +84,7 @@ def apply_checkpoint(p, x, xs):
     info = plugins.sd_models.get_closet_checkpoint_match(x)
     if info is None:
         raise RuntimeError(f"Unknown checkpoint: {x}")
-    plugins.sd_models.reload_model_weights(shared.sd_model, info)
+    plugins.sd_models.load_weights(shared.sd_model, info)
 
 
 def confirm_checkpoints(p, xs):
@@ -326,7 +324,7 @@ class Script(scripts.Plugin):
             total_steps = p.steps * len(xs) * len(ys)
 
         print(f"X/Y plot will create {len(xs) * len(ys) * p.n_iter} images on a {len(xs)}x{len(ys)} grid. (Total steps to process: {total_steps * p.n_iter})")
-        shared.total_tqdm.updateTotal(total_steps * p.n_iter)
+        shared.total_tqdm.update_total(total_steps * p.n_iter)
 
         def cell(x, y):
             pc = copy(p)
@@ -349,7 +347,7 @@ class Script(scripts.Plugin):
             images.save_image(processed.images[0], p.outpath_grids, "xy_grid", prompt=p.prompt, seed=processed.seed, grid=True, p=p)
 
         # restore checkpoint in case it was changed by axes
-        plugins.sd_models.reload_model_weights(shared.sd_model)
+        plugins.sd_models.load_weights(shared.sd_model)
 
         hypernetwork.load_hypernetwork(opts.sd_hypernetwork)
 
