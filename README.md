@@ -23,20 +23,19 @@ The server now boots up and we can import the StableDiffusion plugin, and even i
 The SD plugin processes are being refactored into the job system as JobParameters, which we can extend.
 The ProcessResult had too many values being copied around. Instead we are now keeping them in the JobParameters object. 
 
-So the plugin announces its capabilities: (name, function, input type, output type, parameter class)
-Its function returns one or multiple jobs, each job is created with a job param that describes this action.
-and it will work
+So the plugin announces its job signatures like this: `name, function, input type, output type, parameter class`
+Each invocation function returns one or multiple jobs, and each job has an associated param object to configure it.
 
-A lot of useless UI shit mixed into the backend, we're mostly deleting this code, its effortless to rewrite it.
+A lot of useless UI shit mixed into the backend, we're mostly restarting from scartch for the gradio UI.
 
 Contribution points: 
 
-- Missing a UI and the Stable Diffusion plugin is in shambles because still refactoring. A lot of the API points are missing for a good UI
-- Need to figure out sessions with connection methods like ssh or password, otherwise anyone can use if u share (lol)
 - Obviously I am trying to get the SD plugin working first with img2img and txt2img jobs, then all the upscalers are mostly the same. 
-- Should probably remove a lot of CLI arguments and use an option system instead. Too many commandline args it's a mess.
-- Need to figure out how we can get an efficient system where plugins are hosted on github and collect them for listing.
 - It would be cool to embed a CLI interface into the server but idk how to do this with flask, I'm using app.run(). 
+- Missing a UI and the Stable Diffusion plugin is in shambles because still refactoring. A lot of the API points are missing for a good UI
+- Need to figure out sessions with connection methods like passwords, ssh, etc. otherwise anyone can request jobs if u share (lol)
+- Need to figure out how we can get an efficient system where plugins are hosted on github and collect them for listing.
+- Removing a lot of cli args and options and using job params where possible
 
 AUTOMATIC1111 is still not responding and I don't know any other way to contact him so don't know if we have him on-board. The project must be renamed to stable-core or something not stable-diffusion related.
 
