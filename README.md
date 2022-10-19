@@ -4,7 +4,7 @@
 
 The long-term goal is to make a backend like this:
 
-- **Jobs:**Generate some data or transform some other data.  Currently it's a simple queue. In the future it could be scaled up to allow deferring to multiple backend nodes such as a cluster of GPUs, horde, etc.
+- **Jobs:** Generate some data or transform some other data.  Currently it's a simple queue. In the future it could be scaled up to allow deferring to multiple backend nodes such as a cluster of GPUs, horde, etc.
 - **Plugins:** handle installation for models and libraries and add API/jobs to use them. CLI utility to create a named plugin and instantly start working on it.
 - **Server/Client:**  Clients can be UIs designed for this backend, or bridge to other apps like blender nodes, kdenlive clips, effects, etc. Currently using flask with flask-sockio since it's very fast to use.
 - **Package Manager Ecosystem:** Act as a package manager for AI, implement all your ideas and favorite models into stable-core to benefit from multiple GUIs and chain it with other community plugins, all designed for creative coding.
