@@ -11,21 +11,12 @@
 Each plugin clearly announces its functions and parameters, so one generic UI drawer code to render them all.
 The in/out parameters allow to create node UI to chain plugin jobs, a list macro, scripting logic, etc.
 
-# **Coding Practices**
+## Contributions:
 
-- **KISS:** The backend abids KISS, whole thing can be read and understood in under in an hour. As few moving parts as possible.
-- **Survivor:** Avoid crashing as much as possible, we should try to keep the backend core running when maxing out VRAM. We can maybe run plugins on a separate process so the backend can keep running even if a plugin results in OOM.
-- **Orthogonal:** Avoid global states as much as possible, emphasis on locality.
-- **Unit Testing:** not planned for the first releases but a test suite could be useful.
+Contribution points for anyone who'd like to help.
 
-_Formating:_
-- 4 spaces indent
-- Prefer Pathlib Path over filename strings
-
-_Contributions:_
- 
 - Interactive Shell: it would be cool to embed an interactive CLI interface into the server to use it without a UI, idk how to do this with flask though. (just using app.run() to launch it) 
-- Plugins: We already 'have' a bunch of plugins courtesy of AUTOMATIC1111, mainly upscalers. The code still needs to be ported for each of them.
+- Plugins: We already 'have' a bunch of plugins courtesy of AUTOMATIC1111, mainly upscalers. The code still needs to be ported for each of them. Then after that we can try to implement new ones.
 - UI: we don't have a UI yet, I will write one in Dear ImGUI as soon as SD plugin is usable.
 - Authentication: session system to connect with a passwords, ssh, etc. no sharing without this obviously.
 - Plugin Shell Script:
@@ -34,7 +25,27 @@ _Contributions:_
    - Creation: Create a new plugin, ready to work on it and push to a repository.
    - Update: Update an existing plugin with git pull.
 
-_Plugin Ideas:_
+### Coding Standards
+
+- **KISS:** we abid KISS, must be able to read and understood whole thing in under an hour. Always consider more than one approach, pick the simplest. As few moving parts as possible.
+- **Robust:** Avoid crashing as much as possible, we should try to keep the backend core running when maxing out VRAM. We can maybe run plugins on a separate process so the backend can keep running even if a plugin results in OOM.
+- **Orthogonal:** Avoid global states as much as possible, emphasis on locality.
+- **Unit Testing:** not planned for the first releases but a test suite could be useful.
+
+### Formatting
+- 4 spaces indent
+- Prefer Pathlib Path over filename strings
+
+
+## Roadmap:
+1. Core backend components (server, jobs, plugins)
+2. Run the StableDiffusionPlugin txt2img job from CLI
+3. Write a UI to run the job in and see progress.
+4. Port some upscalers so we can see the job workflow in action.
+
+## Plugin
+
+Everything that comes to mind
 
 * StableDiffusion: txt2img, img2img
 * VQGAN+CLIP / PyTTI: txt2img, img2img
@@ -59,11 +70,7 @@ _Plugin Ideas:_
   * GFPGAN: img2img, port
 * Metaplugin: a plugin to string other plugins together, either with job macros or straight-up python. Could be done without a plugin but this allows all clients to automatically support these features.
 
-## Roadmap:
-1. Core backend components (server, jobs, plugins)
-2. Run the StableDiffusionPlugin txt2img job from CLI
-3. Write a UI to run the job in and see progress.
-4. Port some upscalers so we can see the job workflow in action.
+
 
 ## Progress Report - 10/20
 
