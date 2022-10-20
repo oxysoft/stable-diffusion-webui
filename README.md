@@ -51,6 +51,8 @@ Let me know if any other idea comes to mind
 * **VQGAN+CLIP / PyTTI:** txt2img, img2img
 * **DiscoDiffusion:** txt2img, img2img
 * **CLIP Interrogate:** img2txt
+* **Dreambooth**: data2ckpt
+* **StyleGAN:** data2ckpt, img2img
 * **2D Transforms:** simple 2D transforms like translate, rotate, and scale.
 * **3D Transforms:** 3D transforms using virtual depth like rotating a sphere OR predicted depth from AdaBins+MiDaS. Could implement depth guidance to try and keep the depth more stable.
 * **Guidance:** these plugins guide the generation plugins.
