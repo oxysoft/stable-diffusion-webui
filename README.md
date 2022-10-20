@@ -7,7 +7,9 @@
 - **Plugin Ecosystem:** Plugin is a wrapper around models, packages, techniques, features, etc. it handles all installation for its libraries and implements backend jobs. A CLI script wizard to instantly create a new plugin and start working on it. Acts a bit like a package manager for AI art, implement all your ideas and favorite models into stable-core to benefit from multiple GUIs and chain it with other community plugins, all designed for creative coding. Installation and repositories is all managed by each plugin, no need to think about this stuff anymore.
 - **Instant Cloud Deploy:** runpod, vast.ai in just a few clicks. Paste in your SSH information to copy your configuration and your installation will automatically be installed and your local jobs are deferred to the instance.
 - **Multi-modal:** text, images, audio types as well. Each plugin job specifies the input and output so that we can transform the data around.
+- **Robust:** Avoid crashing as much as possible, we should try to keep the backend core running when maxing out VRAM.
 - **Unit Testing:** It's not planned currently but a test suite could be useful.
+
 
 It's built on the tried and true codebase by AUTOMATIC1111. The backend abids KISS, whole thing can be read and understood in under in an hour.
 
