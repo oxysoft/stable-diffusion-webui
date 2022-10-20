@@ -70,8 +70,6 @@ Everything that comes to mind
   * GFPGAN: img2img, port
 * Metaplugin: a plugin to string other plugins together, either with job macros or straight-up python. Could be done without a plugin but this allows all clients to automatically support these features.
 
-
-
 ## Progress Report - 10/20
 
 - Server/Client design: ready.
@@ -93,16 +91,12 @@ A lot of useless UI shit mixed into the backend, we're mostly restarting from sc
 
 AUTOMATIC1111 is still not responding and I don't know any other way to contact him so don't know if we have him on-board. The project must be renamed to stable-core or something not stable-diffusion related.
 
-## Progress Report - 10/19
+## Progress Report - 10/18
 
-If you wish to contribute and speed things up, this is the current state of things:
+Current state of things if you wish to contribute and speed things up:
 
 - Many modules have been moved to plugins, they must be reviewed one by one and adapted into its Plugin class
-- StableDiffusionPlugin is complex and broken up into several files.
-   - The processing stuff can probably stay.
-   - Sort out what is going on with the 'hijack' and 'hypernetwork' things, streamline that stuff
-- We must exorcise the calls to `shared` across every plugin
+- Exorcise all reference of `shared`, CLI args, and options.
 - **Must figure out a real backend solution, not this gradio stuff**
-- **Idk yet if the options stuff is compatible with the plugin architecture and how much needs refactoring**. I think it looks good and we can ask plugins to return an options_section(), but need to verify.
-- We will probably rewrite the UI completely, old pieces can be adapted if necessary. Since we can move each plugin's UI into its on plugin file the UI will be a lot easier to improve in the future.
-- There are more modules, some are just utility functions
+- We will probably rewrite the UI completely, old pieces can be adapted if necessary. Since we can move each plugin's UI into its own plugin file the UI will be a lot easier to improve in the future.
+- There are more modules remaining, some are just utility functions
