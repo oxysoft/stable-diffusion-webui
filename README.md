@@ -15,11 +15,11 @@ The in/out parameters allow to create node UI to chain plugin jobs, a list macro
 
 Contribution points for anyone who'd like to help.
 
-- Interactive Shell: it would be cool to embed an interactive CLI interface into the server to use it without a UI, idk how to do this with flask though. (just using app.run() to launch it) 
-- Plugins: We already 'have' a bunch of plugins courtesy of AUTOMATIC1111, mainly upscalers. The code still needs to be ported for each of them. Then after that we can try to implement new ones.
-- UI: we don't have a UI yet, I will write one in Dear ImGUI as soon as SD plugin is usable.
-- Authentication: session system to connect with a passwords, ssh, etc. no sharing without this obviously.
-- Plugin Shell Script:
+- **Interactive Shell:** it would be cool to embed an interactive CLI interface into the server to use it without a UI, idk how to do this with flask though. (just using app.run() to launch it) 
+- **Plugins:** We already 'have' a bunch of plugins courtesy of AUTOMATIC1111, mainly upscalers. The code still needs to be ported for each of them. Then after that we can try to implement new ones.
+- **UI:** we don't have a UI yet, I will write one in Dear ImGUI as soon as SD plugin is usable.
+- **Authentication:** session system to connect with a passwords, ssh, etc. no sharing without this obviously.
+- **Plugin Shell Script:**
    - We need a CLI script to interact with plugins. (written in Python)
    - Discoverery: Figure out how to host plugins on github and automatically collect them for listing.
    - Creation: Create a new plugin, ready to work on it and push to a repository.
