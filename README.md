@@ -45,30 +45,30 @@ Contribution points for anyone who'd like to help.
 
 ## Plugin
 
-Everything that comes to mind
+Let me know if any other idea comes to mind
 
-* StableDiffusion: txt2img, img2img
-* VQGAN+CLIP / PyTTI: txt2img, img2img
-* DiscoDiffusion: txt2img, img2img
-* CLIP Interrogate: img2txt
-* 2D Transforms: simple 2D transforms like translate, rotate, and scale.
-* 3D Transforms: 3D transforms using virtual depth like rotating a sphere OR predicted depth from AdaBins+MiDaS. Could implement depth guidance to try and keep the depth more stable.
-* Guidance: these plugins guide the generation plugins.
-   * CLIP Guidance: guidance using CLIP models.
-   * Lpips Guidance: guidance using lpips
-   * Convolution Guidance: guidance using convolutions
-* Audio Analysis: img2num, turn audio inputs into numbers for audio-reactivity, using FFT and stuff like that. Can maybe use Magenta.
-* Palette Match: img2img, adjust an image's palette to match an input image.
-* Flow Warp: img2img, displace an image using estimated flow between 2 input images.
-* Prompt Wildcards: txt2txt
-* Whisper: audio2txt
+* **StableDiffusion:** txt2img, img2img
+* **VQGAN+CLIP / PyTTI:** txt2img, img2img
+* **DiscoDiffusion:** txt2img, img2img
+* **CLIP Interrogate:** img2txt
+* **2D Transforms:** simple 2D transforms like translate, rotate, and scale.
+* **3D Transforms:** 3D transforms using virtual depth like rotating a sphere OR predicted depth from AdaBins+MiDaS. Could implement depth guidance to try and keep the depth more stable.
+* **Guidance:** these plugins guide the generation plugins.
+   * **CLIP Guidance:** guidance using CLIP models.
+   * **Lpips Guidance:** guidance using lpips
+   * **Convolution Guidance:** guidance using convolutions. (edge_weight in PyTTI)
+* **Audio Analysis:** img2num, turn audio inputs into numbers for audio-reactivity, using FFT and stuff like that. Can maybe use Magenta.
+* **Palette Match:** img2img, adjust an image's palette to match an input image.
+* **Flow Warp:** img2img, displace an image using estimated flow between 2 input images.
+* **Prompt Wildcards:** txt2txt
+* **Whisper:** audio2txt
 * Upscalers:
-  * RealSR: img2img, on Linux this is easily installed thru AUR with `realsr-ncnn-vulkan`
-  * BasicSR: img2img, port
-  * LDSR: img2img
-  * CodeFormer: img2img, port
-  * GFPGAN: img2img, port
-* Metaplugin: a plugin to string other plugins together, either with job macros or straight-up python. Could be done without a plugin but this allows all clients to automatically support these features.
+  * **RealSR:** img2img, on Linux this is easily installed thru AUR with `realsr-ncnn-vulkan`
+  * **BasicSR:** img2img, port
+  * **LDSR:** img2img
+  * **CodeFormer:** img2img, port
+  * **GFPGAN:** img2img, port
+* **MetaPlugin:** a plugin to string other plugins together, either with job macros or straight-up python. Could be done without a plugin but this allows all clients to automatically support these features.
 
 ## Progress Report - 10/20
 
