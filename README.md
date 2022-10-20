@@ -4,18 +4,22 @@
 
 The long-term goal is to make a backend like this:
 
-- **Jobs:** Generate some data or transform some other data.  Currently it's a simple queue. In the future it could be scaled up to allow deferring to multiple backend nodes such as a cluster of GPUs, horde, etc.
-- **Plugins:** handle installation for models and libraries and add API/jobs to use them. CLI utility to create a named plugin and instantly start working on it.
-- **Server/Client:**  Clients can be UIs designed for this backend, or bridge to other apps like blender nodes, kdenlive clips, effects, etc. Currently using flask with flask-sockio since it's very fast to use.
-- **Package Manager Ecosystem:** Act as a package manager for AI, implement all your ideas and favorite models into stable-core to benefit from multiple GUIs and chain it with other community plugins, all designed for creative coding.
-- **Instant Cloud Deploy:** runpod, vast.ai in just a few clicks. Paste in your SSH information to copy your configuration and your installation will automatically defer local jobs to the remote instance.
+- **Server/Client Architecture:**  Clients can be UIs designed for this backend, or bridge to other apps like blender nodes, kdenlive clips, effects, etc. Currently using flask with flask-sockio since it's very fast to use.
+- **Job Management:** Generate some data or transform some other data.  Currently it's a simple queue. In the future it could be scaled up to allow deferring to multiple backend nodes such as a cluster of GPUs, horde, etc.
+- **Plugin Ecosystem:** Wrapper around models, packages, techniques, features, etc. handles all installation and implements backend jobs for them. A CLI script wizard to instantly create a new plugin and start working on it. Acts a bit like a package manager for AI art, implement all your ideas and favorite models into stable-core to benefit from multiple GUIs and chain it with other community plugins, all designed for creative coding. Installation and repositories is all managed by each plugin, no need to think about this stuff anymore.
+- **Instant Cloud Deploy:** runpod, vast.ai in just a few clicks. Paste in your SSH information to copy your configuration and your installation will automatically be installed and your local jobs are deferred to the instance.
 - **Multi-modal:** text, images, audio types as well. Each plugin job specifies the input and output so that we can transform the data around.
-- **Simple:** whole backend core can be read in under in an hour.
-- Built on tried and true AUTOMATIC1111 codebase
+
+It's built on the tried and true codebase by AUTOMATIC1111. The backend abids KISS, whole thing can be read and understood in under in an hour.
 
 UIs can be written as clients, I will do DearImGUI, but gradio would be cool as well for colab. 
 Each plugin clearly announces its functions and parameters, so one generic UI drawer code to render them all.
 The in/out parameters allow to create node UI to chain plugin jobs, a list macro, scripting logic, etc.
+
+**Coding Standards:**
+- 4 spaces indent
+- Prefer Pathlib Path over filename strings
+
 
 ## Core/Plugin Refactor Progress - 10/19
 
