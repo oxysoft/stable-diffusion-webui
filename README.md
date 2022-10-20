@@ -29,7 +29,7 @@ Contribution points for anyone who'd like to help.
 
 - **KISS:** we abid KISS, must be able to read and understood whole thing in under an hour. Always consider more than one approach, pick the simplest. As few moving parts as possible.
 - **Robust:** Avoid crashing as much as possible, we should try to keep the backend core running when maxing out VRAM. We can maybe run plugins on a separate process so the backend can keep running even if a plugin results in OOM.
-- **Orthogonal:** Avoid global states as much as possible, emphasis on locality.
+- **Orthogonal:** Avoid global states as much as possible, emphasis on locality. For example don't do any saving or logging as part of a job, only push some progress and output data and let the specifics be handled externally.
 - **Unit Testing:** not planned for the first releases but a test suite could be useful.
 
 ### Formatting
