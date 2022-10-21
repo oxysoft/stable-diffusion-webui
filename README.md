@@ -13,20 +13,22 @@ The in/out parameters allow to create node UI to chain plugin jobs, a list macro
 
 ## Contributions
 
-I launch directly with `webui.sh` on linux. In Pycharm it also works to run `launch.py` for debugging but I think it's using my local installed packages instead of venv, not exactly sure but it works.
-I've removed the webui-user scripts since we won't be doing CLI arguments anymore, at least not in a way you would want to save them for configuration. There didn't seem to be anything else important for end users in the webui-user script but we may wanna review this.
+I launch directly with `webui.sh` on linux which handles basic pip requirements as in AUTOMATIC1111, and this script is pretty much unchanged.
+In Pycharm it also works to run `launch.py` for debugging, but either you have to launch the sI think it's using my local installed packages instead of venv, not exactly sure but it works.
+Otherwise it might require launching `webui.sh` first to get the venv which pycharm might automatically detect.
+
+I deleted the webui-user scripts since we won't be doing CLI arguments anymore, at least not in a way you would want to save them for configuration. There didn't seem to be anything else important for end users in the webui-user script but we may wanna review this. We'll do a proper configuration file for the core which has very basic things like the port for the server.
 
 Contribution points for anyone who'd like to help.
 
 - **Interactive Shell:** it would be cool to embed an interactive CLI interface into the server to use it without a UI, idk how to do this with flask though. (just using app.run() to launch it) 
 - **Plugins:** We already 'have' a bunch of plugins courtesy of AUTOMATIC1111, mainly upscalers. The code still needs to be ported for each of them. Then after that we can try to implement new ones.
+   - We need a **Plugin Shell Script** (written in python) for the following features...
+   - **Discovery:** Figure out how to host plugins on github and automatically collect them for listing. I'm pretty sure a bunch of other projects do it, it has to be possible somehow, maybe check with `https://vimawesome.com/` how they do it or if it's all manual.
+   - **Creation:** Create a new plugin, ready to work on it and push to a repository. This is a directory with __init__ and a class extending `Plugin`, `stable_diffusion` is currently the best example we have. The directory will be used as its identifier for client/server communication so it should be all lowercase, and a valid module name so no dashes.
+   - **Update:** Update an existing plugin with git pull on it.
 - **UI:** we don't have a UI yet, I will write one in Dear ImGUI as soon as SD plugin is usable.
 - **Authentication:** session system to connect with a passwords, ssh, etc. no sharing without this obviously.
-- **Plugin Shell Script:**
-   - We need a CLI script to interact with plugins. (written in Python)
-   - Discoverery: Figure out how to host plugins on github and automatically collect them for listing.
-   - Creation: Create a new plugin, ready to work on it and push to a repository.
-   - Update: Update an existing plugin with git pull.
 
 ### Coding Standards
 
