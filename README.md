@@ -11,7 +11,10 @@
 Each plugin clearly announces its functions and parameters, so one generic UI drawer code to render them all.
 The in/out parameters allow to create node UI to chain plugin jobs, a list macro, scripting logic, etc.
 
-## Contributions:
+## Contributions
+
+I launch directly with `webui.sh` on linux. In Pycharm it also works to run `launch.py` for debugging but I think it's using my local installed packages instead of venv, not exactly sure but it works.
+I've removed the webui-user scripts since we won't be doing CLI arguments anymore, at least not in a way you would want to save them for configuration. There didn't seem to be anything else important for end users in the webui-user script but we may wanna review this.
 
 Contribution points for anyone who'd like to help.
 
@@ -38,7 +41,7 @@ Contribution points for anyone who'd like to help.
 
 
 ## Roadmap:
-1. Core backend components (server, jobs, plugins)
+1. ~Core backend components (server, jobs, plugins) to a usable state.~
 2. Run the StableDiffusionPlugin txt2img job from CLI
 3. Write a UI to run the job in and see progress.
 4. Port some upscalers so we can see the job workflow in action.
