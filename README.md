@@ -53,7 +53,8 @@ Contribution points for anyone who'd like to help.
 
 Let me know if any other idea comes to mind
 
-* **StableDiffusion:** txt2img, img2img
+* **AUTO1111 StableDiffusion:** txt2img, img2img
+* **Diffusers StableDiffusion:** txt2img, img2img
 * **VQGAN+CLIP / PyTTI:** txt2img, img2img
 * **DiscoDiffusion:** txt2img, img2img
 * **CLIP Interrogate:** img2txt
