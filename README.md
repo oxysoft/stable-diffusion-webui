@@ -30,8 +30,8 @@ Contribution points for anyone who'd like to help.
 
 ### Coding Standards
 
-- **KISS:** We abid KISS, must be able to read and understood whole thing in under an hour. Always consider more than one approach, pick the simplest. As few moving parts as possible.
-- **Documentation:** There is a severe lack of quality documentation in the world of programming. Long methods are fine, but add big header comments with titles. Check `launch.py` for recommended amount of documentation.
+- **KISS:** We abid KISS, must be able to read and understood whole thing in under an hour. Always consider more than one approach, pick the simplest. More code is always fine, but most additional class, function, or even fields/properties should lead to some API review. We want as few moving parts as possible outside of functions.
+- **Documentation:** There is a severe lack of quality documentation in the world of programming, see `launch.py` for a good demo of proper documentation. Long methods are fine, but add big header comments with titles.
 - **Stability:** Don't use exceptions for simple stuff. Fail gracefully with an error message and default value instead of throwing an exception anywhere we can expect the possible states. Avoid crashing as much as possible, we should try to keep the backend core running when maxing out VRAM, maybe we can run plugins on separate processes so the backend can keep running even if a plugin results in OOM.  
 - **Orthogonality:** Avoid global states as much as possible, emphasis on locality. For example don't do any saving or logging as part of a job, only push some progress and output data and let the specifics be handled externally. Don't pass some huge bags of options, e.g. if you have a plugin with an option object pass the individual values you need. If they're defaults, architecture the code such as to be able to post-process the values and apply defaults.
 - **Unit Testing:** not planned for the first releases but test suites could certainly be useful, especially on individual plugins that might change a lot like StableDiffusionPlugin.
