@@ -78,10 +78,9 @@ Let me know if any other idea comes to mind
 
 ## Progress Report - 10/20
 
-- Server/Client design: ready.
-- Plugins: loading and API ready. See the contribution section above to see what's left.
-  - Configuration: missing a good approach, CLI is evil and the previous approach for options also evil.
-- SD plugin: almost functional, hypernetworks and textinv in refactoring.
+- Server/Client design: ready. (really the the minimum)
+- Plugins: ready. See the contribution section above to see what's left
+- SD plugin: 75%, hypernetworks and textinv in refactoring.
 - UI: starting as soon as SD plugin is done.
 
 ## Progress Report - 10/19
