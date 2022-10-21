@@ -7,12 +7,12 @@ import numpy as np
 import torch
 from basicsr.utils.download_util import load_file_from_url
 
-import useless.upscaler
+import old.upscaler
 from core import modellib, devicelib
 from BSRGANPlugin_arch import RRDBNet
 
 
-class UpscalerBSRGAN(useless.upscaler.Upscaler):
+class UpscalerBSRGAN(old.upscaler.Upscaler):
     def __init__(self, dirname):
         self.name = "BSRGAN"
         self.model_name = "BSRGAN 4x"
@@ -22,7 +22,7 @@ class UpscalerBSRGAN(useless.upscaler.Upscaler):
         model_paths = self.find_models(ext_filter=[".pt", ".pth"])
         scalers = []
         if len(model_paths) == 0:
-            scaler_data = useless.upscaler.UpscalerData(self.model_name, self.model_url, self, 4)
+            scaler_data = old.upscaler.UpscalerData(self.model_name, self.model_url, self, 4)
             scalers.append(scaler_data)
         for file in model_paths:
             if "http" in file:
@@ -30,7 +30,7 @@ class UpscalerBSRGAN(useless.upscaler.Upscaler):
             else:
                 name = modellib.friendly_name(file)
             try:
-                scaler_data = useless.upscaler.UpscalerData(name, file, self, 4)
+                scaler_data = old.upscaler.UpscalerData(name, file, self, 4)
                 scalers.append(scaler_data)
             except Exception:
                 print(f"Error loading BSRGAN model: {file}", file=sys.stderr)

@@ -5,6 +5,12 @@ from core.plugins import Plugin
 
 
 class XFormersPlugin(Plugin):
+    def title(self):
+        return "XFormers"
+
+    def describe(self):
+        return "Handle XFormers installation for other plugins."
+
     def install(self, args):
         if platform.python_version().startswith("3.10"):
             if platform.system() == "Windows":

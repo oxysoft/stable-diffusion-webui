@@ -5,11 +5,12 @@ import signal
 import sys
 import shlex
 
+from core.cmdargs import cargs
 from core.paths import repodir
 from core.installing import is_installed, run, git, git_clone, run_python, run_pip, repo_dir, python
 
 from core.paths import rootdir
-from modules.StableDiffusion.SDJob_txt2img import SDJob_txt2img
+from modules.stable_diffusion.SDJob_txt2img import SDJob_txt2img
 
 taming_transformers_commit_hash = os.environ.get('TAMING_TRANSFORMERS_COMMIT_HASH', "24268930bf1dce879235a7fddd0b2355b84d7ea6")
 torch_command = os.environ.get('TORCH_COMMAND', "pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113")
@@ -68,60 +69,54 @@ if __name__ == "__main__":
 
     # Prepare CTRL-C handler
     signal.signal(signal.SIGINT, sigint_handler)
-    # Prepare args for use
-    args = shlex.split(commandline_args)
-    sys.argv += args
-
-    # Prepare plugin system
-    from core import plugins, cmdargs, options
-
-    # Load modules
-    sys.path.insert(0, (rootdir / "repositories" / "stable-diffusion").as_posix())
-    sys.path.insert(0, (rootdir / "repositories" / "k-diffusion").as_posix())
-    sys.path.insert(0, (rootdir / "repositories" / "stable-diffusion" / "ldm").as_posix())
-    sys.path.insert(0, (rootdir / "modules" / "StableDiffusion").as_posix())
-
-    from StableDiffusionPlugin import StableDiffusionPlugin
-
-    sdplug = StableDiffusionPlugin()
-
-    sdplug.args(cmdargs.parser)
-    plugins.dispatch.args(cmdargs.parser)
-    cmdargs.cargs = cmdargs.parser.parse_args()
-
-    sdplug.options(options.options_templates)
-    options.load()
-
 
     # Memory monitor
     from core import options, devicelib, memmon
 
-    mem_mon = memmon.MemUsageMonitor("MemMon", devicelib.device, options.opts)
+    mem_mon = memmon.MemUsageMonitor("MemMon", devicelib.device, options.opts)  # TODO remove options
     mem_mon.start()
 
-    # plugins.load_py(root_path / "modules" / "StableDiffusion" / "StableDiffusionPlugin.py")
+    # Prepare args for use
+    from core import cmdargs
+
+    args = shlex.split(commandline_args)
+    sys.argv += args
+    cargs = cmdargs.parser.parse_args(args)
+
+    # Prepare plugin system
+    # ----------------------------------------
+    from core import plugins, options, paths
+
+    # Iterate all directories in paths.repodir TODO this should be handled automatically by plugin installations
+    for d in paths.repodir.iterdir():
+        sys.path.insert(0, d.as_posix())
+
+    sys.path.insert(0, (rootdir / "repositories" / "stable_diffusion" / "ldm").as_posix())
+
+    # TODO git clone modules from a user list
+    plugins.load_all(paths.plugindir)
 
     # Installations
+    # ----------------------------------------
     install_core()
-    plugins.dispatch.install(args)
-    sdplug.install()
+    plugins.broadcast("install")
+    print("Installations complete")
 
-    # Dry run, only install stuff and exit.
-    if "--dry" in args:
+    # Dry run, only install and exit.
+    # ----------------------------------------
+    if cargs.dry:
         print("Exiting because of --dry argument")
         exit(0)
 
-    # TODO git clone modules from a user list
-    plugins.dispatch.launch(args)
+    # Start server
+    # ----------------------------------------
+    plugins.broadcast("launch")  # doubt we need this
 
-    # sdplug.init()
-    sdplug.load()
-    sdplug.txt2img(
-            SDJob_txt2img(prompt="",
-                          cfg=7.75,
-                          steps=22,
-                          sampler='euler-a',
-                          ))
+    plugins.job(SDJob_txt2img(prompt="Beautiful painting of an ultra contorted landscape by Greg Ruktowsky and Salvador Dali. airbrushed, 70s prog rock album cover, psychedelic, elaborate, complex",
+                              cfg=7.75,
+                              steps=22,
+                              sampler='euler-a',
+                              ))
 
     install_webui()
     start_webui()

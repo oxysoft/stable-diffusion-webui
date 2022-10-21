@@ -3,7 +3,6 @@ import contextlib
 import torch
 
 from core import printing
-from core.cmdargs import cargs
 
 
 def get_optimal_device():
@@ -50,12 +49,9 @@ def randn_without_seed(shape):
     return torch.randn(shape, device=device)
 
 
-def autocast(disable=False):
-    if disable:
-        return contextlib.nullcontext()
-
-    if dtype == torch.float32 or cargs.precision == "full":
-        return contextlib.nullcontext()
+def autocast(enable=True):
+    if not enable: return contextlib.nullcontext()
+    if dtype == torch.float32: return contextlib.nullcontext() # or cargs.precision == "full"
 
     return torch.autocast("cuda")
 
@@ -79,7 +75,7 @@ dtype_vae = torch.float16
 # device_codeformer = \
 #     (cpu if x in cargs.use_cpu else get_optimal_device()
 #      for x
-#      in ['StableDiffusion', 'GFPGAN', 'BSRGAN', 'ESRGAN', 'SCUNet', 'CodeFormer'])
+#      in ['stable_diffusion', 'GFPGAN', 'BSRGAN', 'ESRGAN', 'SCUNet', 'CodeFormer'])
 
 # device = device
 

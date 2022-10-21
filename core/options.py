@@ -2,8 +2,14 @@ import json
 import os
 
 import gradio
-
 from core.cmdargs import cargs
+
+
+def options_section(name, dic):
+    for k, v in dic.items():
+        v.section = name
+
+    return dic
 
 
 class OptionInfo:
@@ -16,13 +22,65 @@ class OptionInfo:
         self.section = None
         self.show_on_main_page = show_on_main_page
 
+class Options:
 
-def options_section(section_identifier, options_dict):
-    for k, v in options_dict.items():
-        v.section = section_identifier
+    def __init__(self, template):
+        self.data = None
+        self.template = template
+        self.typemap = {int: float}
+        self.data = {k: v.default for k, v in self.template.items()}
 
-    return options_dict
+    def __setattr__(self, key, value):
+        if self.data is not None:
+            if key in self.data:
+                self.data[key] = value
 
+        return super(Options, self).__setattr__(key, value)
+
+    def __getattr__(self, item):
+        if self.data is not None:
+            if item in self.data:
+                return self.data[item]
+
+        if item in self.template:
+            return self.template[item].default
+
+        return super(Options, self).__getattribute__(item)
+
+    def save(self, filename):
+        with open(filename, "w", encoding="utf8") as file:
+            json.dump(self.data, file)
+
+    def same_type(self, x, y):
+        if x is None or y is None:
+            return True
+
+        type_x = self.typemap.get(type(x), type(x))
+        type_y = self.typemap.get(type(y), type(y))
+
+        return type_x == type_y
+
+    def load(self, filename):
+        with open(filename, "r", encoding="utf8") as file:
+            self.data = json.load(file)
+
+        bad_settings = 0
+        for k, v in self.data.items():
+            info = self.template.get(k, None)
+            if info is not None and not self.same_type(info.default, v):
+                print(f"Warning: bad setting value: {k}: {v} ({type(v).__name__}; expected {type(info.default).__name__})", file=sys.stderr)
+                bad_settings += 1
+
+        if bad_settings > 0:
+            print(f"The program is likely to not work with bad settings.\nSettings file: {filename}\nEither fix the file, or delete it and restart.", file=sys.stderr)
+
+    def onchange(self, key, func):
+        item = self.template.get(key)
+        item.onchange = func
+
+    def dumpjson(self):
+        d = {k: self.data.get(k, self.template.get(k).default) for k in self.template.keys()}
+        return json.dumps(d)
 
 # hide_dirs = {"visible": not cargs.hide_ui_dir_config}
 
@@ -119,72 +177,11 @@ options_templates.update(options_section(('ui', "User interface"), {
 }))
 
 
-class Options:
-    data = None
-    data_labels = options_templates
-    typemap = {int: float}
-
-    def __init__(self):
-        self.data = {k: v.default for k, v in self.data_labels.items()}
-
-    def __setattr__(self, key, value):
-        if self.data is not None:
-            if key in self.data:
-                self.data[key] = value
-
-        return super(Options, self).__setattr__(key, value)
-
-    def __getattr__(self, item):
-        if self.data is not None:
-            if item in self.data:
-                return self.data[item]
-
-        if item in self.data_labels:
-            return self.data_labels[item].default
-
-        return super(Options, self).__getattribute__(item)
-
-    def save(self, filename):
-        with open(filename, "w", encoding="utf8") as file:
-            json.dump(self.data, file)
-
-    def same_type(self, x, y):
-        if x is None or y is None:
-            return True
-
-        type_x = self.typemap.get(type(x), type(x))
-        type_y = self.typemap.get(type(y), type(y))
-
-        return type_x == type_y
-
-    def load(self, filename):
-        with open(filename, "r", encoding="utf8") as file:
-            self.data = json.load_py(file)
-
-        bad_settings = 0
-        for k, v in self.data.items():
-            info = self.data_labels.get(k, None)
-            if info is not None and not self.same_type(info.default, v):
-                print(f"Warning: bad setting value: {k}: {v} ({type(v).__name__}; expected {type(info.default).__name__})", file=sys.stderr)
-                bad_settings += 1
-
-        if bad_settings > 0:
-            print(f"The program is likely to not work with bad settings.\nSettings file: {filename}\nEither fix the file, or delete it and restart.", file=sys.stderr)
-
-    def onchange(self, key, func):
-        item = self.data_labels.get(key)
-        item.onchange = func
-
-    def dumpjson(self):
-        d = {k: self.data.get(k, self.data_labels.get(k).default) for k in self.data_labels.keys()}
-        return json.dumps(d)
 
 
 opts = None
-
-
 def load():
     global opts
-    opts = Options()
+    opts = Options(options_templates)
     # if os.path.exists(cargs.ui_config_file):
     #     opts.load(cargs.ui_config_file)

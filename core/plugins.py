@@ -1,9 +1,11 @@
+import importlib
 import sys
 import traceback
 from pathlib import Path
 
 # Constants
 from core.jobs import JobParams
+from core.printing import printerr
 
 INIT_NONE = 0
 INIT_ENABLE = 1
@@ -11,25 +13,24 @@ INIT_RUN = 2
 
 
 class Plugin:
-    id = ""
-    filename = None
-    init_level = 0
-    enabled = False
-
-    def __init__(self, filename):
-        if filename is not None:
-            self.filename = Path(filename)
-            self.id = Path(self.filename).stem
+    def __init__(self, dirpath: Path, id: str = None):
+        if dirpath is not None and id is None:
+            self.dir = Path(dirpath)
+            self.id = id or Path(self.dir).stem
+        elif id is not None:
+            self.dir = None
+            self.id = id
         else:
+            self.dir = None
             self.id = self.__class__.__name__
 
-    def new_job(self, funcname, parameters: JobParams):
+    def new_job(self, name, jobparams: JobParams):
         """
         Return a new job
         """
         from core import jobs
-        parameters.plugin = self
-        return jobs.new_job(self.id, funcname, parameters)
+        jobparams.plugin = self
+        return jobs.new_job(self.id, name, jobparams)
 
     # The title of the script. This is what will be displayed in the dropdown menu.
     def title(self):
@@ -47,87 +48,14 @@ class Plugin:
     def init(self, level):
         pass
 
+    def jobs(self):
+        """Announce the jobs we can handle"""
+        return dict()
+
     def install(self):
         pass
 
     def uninstall(self):
-        pass
-
-    # Determines when the script should be shown in the dropdown menu via the returned value.
-    # Return a list of pages to show on.
-    # Valid values: ["text2img", "img2img", "extras", "settings"]
-    # TODO Any other string will create a new tab by this name reserved for this script.
-    def show(self, page: str):
-        return True
-
-    # How the script is displayed in the UI. See https://gradio.app/docs/#components
-    # for the different UI components you can use and how to create them.
-    # Most UI components can return a value, such as a boolean for a checkbox.
-    # The returned values are passed to the run method as parameters.
-    def ui(self, page):
-        pass
-
-    def args(self, parser):
-        pass
-
-    # def img2img(self, img):
-    #     pass
-    #
-    # def txt2img(self, img):
-    #     pass
-    #
-    # def img2txt(self, img):
-    #     pass
-
-    def on_run_start(self):
-        pass
-
-    def on_postprocess_run_params(self, p):
-        pass
-
-    def on_batch_start(self, p):
-        pass
-
-    def on_postprocess_batch_params(self, p):
-        pass
-
-    def on_postprocess_image(self, img):
-        """
-        Called for every image output of each batch.
-        Args:
-            img: the output image to process, in cv2 rgb format. Use utilities to convert
-
-        Returns: the modified image.
-        """
-        pass
-
-    def on_postprocess_path(self, img, path: Path):
-        """
-        Post-process the save path for an output image.
-        Args:
-            img: The image in cv2 RGB format.
-            path: The path that the image was saved to.
-
-        Returns:
-        """
-
-    def on_image_saved(self, img, path: Path):
-        """
-        An ouput image has been saved.
-        Args:
-            img: The image in cv2 RGB format.
-            path: The path that the image was saved to.
-
-        Returns:
-        """
-
-    def on_batch_end(self):
-        pass
-
-    def on_run_end(self):
-        pass
-
-    def on_run_interrupted(self):
         pass
 
     # Allows accessing script's attributes by indexing e.g. script['on_run_start']
@@ -135,33 +63,8 @@ class Plugin:
         return getattr(self, varname)
 
 
-class ListDispatch:
-    """
-    A class to automatically call a function on every plugin.
-    """
-
-    def __init__(self, ref, log=False):
-        self.ref = ref
-        self.log = log
-
-    def __getattr__(self, name):
-        def wrapper(*args, **kwargs):
-            ret = []
-            if self.log:
-                print(f"PluginDispatch({name}) to {len(self.ref)} scripts")
-
-            for plugin in self.ref:
-                if plugin.enabled:
-                    v = getattr(plugin, name)(*args, **kwargs)
-                    ret.append(v)
-            return ret
-
-        return wrapper
-
-
-plugins_info = []  # Plugin infos (script class, filepath)
+plugin_dirs = []  # Plugin infos (script class, filepath)
 plugins = []  # Loaded modules
-dispatch = ListDispatch(plugins, True)
 
 
 # def setup_ui(self):
@@ -181,98 +84,126 @@ dispatch = ListDispatch(plugins, True)
 #
 #     return tabs
 
-def list():
+def list_ids():
     """
     Return a list of all plugins (string IDs only)
     """
-    return [plug.id() for plug in plugins]  # TODO pack more info
+    return [plug.id for plug in plugins]
 
 
 def get(plugid):
+    """
+    Get a plugin instance by ID.
+    """
+    if isinstance(plugid, Plugin):
+        return plugid
+
     for plugin in plugins:
-        if plugin.id() == plugid:
+        if plugin.id == plugid:
             return plugin
 
     return None
 
 
 def info(plugid):
+    """
+    Get a plugin's info by ID
+    """
     plug = get(plugid)
     if plug:
-        return plug.info()
+        return dict(id=plug.id,
+                    jobs=plug.jobs(),
+                    title=plug.title(),
+                    description=plug.describe())
 
     return None
 
 
-def invoke(plugid, funcname, default=None, *args, **kwargs):
+def load(path: Path):
+    """
+    Manually load a plugin at the given path
+    """
+    import inspect
+    from types import ModuleType
+
+    # Find classes that extend Plugin in the module
+    try:
+        sys.path.append(path.as_posix())
+        plugin_dirs.append(path)
+
+        # # this is missing a bunch of module files for some reason...
+        # mod = importlib.import_module(f'modules.{path.stem}')
+        #
+        # for name, obj in inspect.getmembers(mod):
+        #     if inspect.isclass(obj) and issubclass(obj, Plugin):
+        #         print(f"Found plugin: {obj}")
+        #         # Instantiate the plugin
+        #         plugin = obj(dirpath=path)
+        #         plugins.append(plugin)
+
+        # TODO probably gonna have to detect by name instead (class & file name must be the same, and end with 'Plugin', e.g. StableDiffusionPlugin)
+        for f in path.iterdir():
+            if f.is_file() and f.suffix == '.py':
+                mod = importlib.import_module(f'modules.{path.stem}.{f.stem}')
+                for name, obj in inspect.getmembers(mod):
+                    if inspect.isclass(obj) and issubclass(obj, Plugin):
+                        # Instantiate the plugin
+                        print(f"Found plugin: {obj}")
+                        plugin = obj(dirpath=path)
+                        plugins.append(plugin)
+    except:
+        sys.path.remove(path.as_posix())
+        plugin_dirs.remove(path)
+
+
+def load_all(loaddir: Path):
+    """
+    Load all plugin directories inside of loaddir.
+    """
+    if not loaddir.exists():
+        return
+
+    # Read the modules from the plugin directory
+    for p in loaddir.iterdir():
+        if p.is_dir() and not p.stem.startswith('__'):
+            load(p)
+
+    print(f'Reloaded modules, {len(plugin_dirs)} found')
+
+
+def invoke(plugin, function, default=None, error=False, *args, **kwargs):
     """
     Invoke a plugin, may return a job object.
     """
     try:
-        plug = get(plugid)
-        if plug:
-            return getattr(plug, funcname)(*args, **kwargs)
+        plug = get(plugin)
+        if not plug:
+            if error: printerr(f"Plugin {plugin} not found")
+            return default
+
+        attr = getattr(plug, function)
+        if not attr:
+            if error: printerr(f"Plugin {plugin} has no attribute {function}")
+            return default
+
+        return attr(*args, **kwargs)
     except Exception:
-        print(f"Error calling: {plugid}/{funcname}", file=sys.stderr)
+        print(f"Error calling: {plugin}.{function}", file=sys.stderr)
         print(traceback.format_exc(), file=sys.stderr)
 
-    return default
 
-
-def load_py(path):
+def job(p: JobParams):
     """
-    Manually load a plugin at the given path
+    Run a job.
     """
-    # import modules.StableDiffusion.StableDiffusionPlugin
-    from types import ModuleType
-
-    with open(path, "r", encoding="utf8") as file:
-        filename = path
-
-        # Exec the plug code
-
-        sys.path.append(path.parent)
-        sys.path.append(path.parent.parent)
-
-        print(sys.path)
-        text = file.read()
-        compiled = compile(text, filename, 'exec')
-        module = ModuleType(path.as_posix())
-        exec(compiled, module.__dict__)
-
-        # Instantiate plug classes
-        for key, plugclass in module.__dict__.items():
-            if type(plugclass) == type and issubclass(plugclass, Plugin):
-                plug = plugclass()
-                plug.filename = filename
-                plugins.append(plug)
+    plugin, funcname = p.get_plugin_impl()
+    return invoke(plugin, funcname, None, True, p)
 
 
-def load_dir(dirpath):
-    if not dirpath.exists():
-        return
-
-    # Read the modules from the plugin directory
-    for filename in dirpath.glob("*.py"):
-        try:
-            with open(filename, "r", encoding="utf8") as file:
-                text = file.read()
-
-            from types import ModuleType
-            compiled = compile(text, filename, 'exec')
-            module = ModuleType(filename.as_posix())
-            exec(compiled, module.__dict__)
-
-            for key, script_class in module.__dict__.items():
-                if type(script_class) == type and issubclass(script_class, Plugin):
-                    plugins_info.append((script_class, filename))
-
-        except Exception:
-            print(f"Error loading script: {filename}", file=sys.stderr)
-            print(traceback.format_exc(), file=sys.stderr)
-
-    # Reload instances
-    for plug in plugins_info:
-        load_py(plug.filename)
-
-    print(f'Reloaded modules, {len(plugins_info)} found')
+def broadcast(name, *args, **kwargs):
+    """
+    Dispatch a function call to all plugins.
+    """
+    print(f"broadcast({name}, {args}, {kwargs}) to {len(plugins)} plugins")
+    for plugin in plugins:
+        invoke(plugin.id, name, None, False, *args, **kwargs)

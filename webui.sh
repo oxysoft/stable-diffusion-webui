@@ -3,12 +3,6 @@
 # Please do not make any changes to this file,  #
 # change the variables in webui-user.sh instead #
 #################################################
-# Read variables from webui-user.sh
-# shellcheck source=/dev/null
-if [[ -f webui-user.sh ]]
-then
-    source ./webui-user.sh
-fi
 
 # Set defaults
 # Install directory without trailing slash
@@ -17,10 +11,10 @@ then
     install_dir="/home/$(whoami)"
 fi
 
-# Name of the subdirectory (defaults to stable-diffusion-webui)
+# Name of the subdirectory (defaults to stable-core)
 if [[ -z "${clone_dir}" ]]
 then
-    clone_dir="stable-diffusion-webui"
+    clone_dir="stable-core"
 fi
 
 # python3 executable
@@ -103,7 +97,7 @@ then
 fi
 
 printf "\n%s\n" "${delimiter}"
-printf "Clone or update stable-diffusion-webui"
+printf "Clone or update stable-core"
 printf "\n%s\n" "${delimiter}"
 cd "${install_dir}"/ || { printf "\e[1m\e[31mERROR: Can't cd to %s/, aborting...\e[0m" "${install_dir}"; exit 1; }
 if [[ -d "${clone_dir}" ]]

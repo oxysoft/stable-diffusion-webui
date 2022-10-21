@@ -6,6 +6,8 @@ from pathlib import Path
 rootdir = Path(__file__).resolve().parent.parent
 modeldir = rootdir / "models"
 repodir = rootdir / "repositories"
+plugindir = rootdir / "modules"
+embeddingdir = rootdir / "embeddings"
 
 sys.path.insert(0, rootdir.as_posix())
 
@@ -15,7 +17,7 @@ sys.path.insert(0, rootdir.as_posix())
 #     (os.path.join(sd_path, '../taming-transformers'), 'taming', 'Taming Transformers', []),
 #     (os.path.join(sd_path, '../CodeFormer'), 'inference_codeformer.py', 'CodeFormer', []),
 #     (os.path.join(sd_path, '../BLIP'), 'models/blip.py', 'BLIP', []),
-#     (os.path.join(sd_path, '../k-diffusion'), 'k_diffusion/sampling.py', 'k_diffusion', ["atstart"]),
+#     (os.path.join(sd_path, '../k-diffusion'), 'k_diffusion/SDSampler.py', 'k_diffusion', ["atstart"]),
 # ]
 #
 # paths = {}

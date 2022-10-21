@@ -151,15 +151,13 @@ class Script(scripts.Plugin):
 
             combined_noise = ((1 - randomness) * rec_noise + randomness * rand_noise) / ((randomness**2 + (1-randomness)**2) ** 0.5)
 
-            sampler = sd_samplers.create_sampler_with_index(sd_samplers.samplers, p.sampler_index, p.model)
-
-            sigmas = sampler.model_wrap.get_sigmas(p.steps)
+            sigmas = p.sampler.model_wrap.get_sigmas(p.steps)
 
             noise_dt = combined_noise - (p.init_latent / sigmas[0])
 
             p.seed = p.seed + 1
 
-            return sampler.sample_img2img(p, p.init_latent, noise_dt, conditioning, unconditional_conditioning)
+            return p.sampler.sample_img2img(p, p.init_latent, noise_dt, conditioning, unconditional_conditioning)
 
         p.sample = sample_extra
 

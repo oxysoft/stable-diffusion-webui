@@ -12,7 +12,7 @@ from core import modellib
 from shared import cmd_opts, opts, device
 from core.plugins import SwinIR as net
 from core.plugins import Swin2SR as net2
-from useless.upscaler import Upscaler, UpscalerData
+from old.upscaler import Upscaler, UpscalerData
 from core.paths import rootdir, modeldir
 from core.plugins import Plugin
 

@@ -1,4 +1,4 @@
-from useless.upscaler import LANCZOS, UpscalerData
+from old.upscaler import LANCZOS, UpscalerData
 from core.plugins import Plugin
 
 

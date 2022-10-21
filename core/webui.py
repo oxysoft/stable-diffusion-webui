@@ -7,7 +7,6 @@ import modules
 from flask import Flask, jsonify, request
 import flask_socketio as fsock
 
-
 queue_lock = threading.Lock()
 
 app = Flask(__name__)
@@ -15,32 +14,41 @@ app.config['SECRET_KEY'] = 'secret!'
 
 socketio = fsock.SocketIO(app)
 
+
 def emit(event, *args, **kwargs):
     with queue_lock:
         socketio.emit(event, *args, **kwargs)
+
 
 @app.route('/')
 def index():
     return "Hello from stable-core!"
 
+
 # A route to list all plugins
 @app.route('/plugins')
 def list_plugins():
     import core.plugins
-    return jsonify(core.plugins.list())
+    return jsonify(core.plugins.list_ids())
+
 
 @socketio.on('connect')
 def connect():
     print('Client connected')
 
+
 @socketio.on('disconnect')
 def disconnect():
     print('Client disconnected')
 
+
 @socketio.on('list_plugins')
 def list_plugins():
+    """ Send an array of plugin IDs """
     import core.plugins
-    emit('list_plugins', jsonify(core.plugins.list()))
+    data = [extract_dict(x, 'id') for x in core.plugins.plugins]
+    emit('list_plugins', jsonify(data))
+
 
 @socketio.on('call_plugin')
 def call_plugin(js):
@@ -57,16 +65,27 @@ def call_plugin(js):
 
     core.plugins.invoke(pid, fname, *args, **kwargs)
 
+
 @socketio.on('list_jobs')
 def list_jobs():
-    return jsonify(jobs.queue.list())
+    return jsonify(jobs.queue.list_ids())
+
+
+@socketio.on('is_job_processing')
+def is_job_processing(id):
+    return jsonify(jobs.is_processing(id))
 
 @socketio.on('abort_job')
 def abort_job(id):
-    jobs.queue.abort(id)
+    if jobs.is_processing(id):
+        jobs.queue.abort(id)
 
+@socketio.on('is_processing')
+def is_processing():
+    return jobs.is_any_processing()
 
-
+def extract_dict(obj, *names):
+    return {x: getattr(obj, x) for x in names}
 
 # def wrap_gradio_gpu_call(func, extra_outputs=None):
 #     def f(*args, **kwargs):

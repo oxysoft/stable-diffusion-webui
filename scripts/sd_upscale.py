@@ -12,7 +12,7 @@ from shared import opts, state
 
 class Script(scripts.Plugin):
     def title(self):
-        return "StableDiffusion upscale"
+        return "stable_diffusion upscale"
 
     def show(self, is_img2img):
         return is_img2img
@@ -28,8 +28,8 @@ class Script(scripts.Plugin):
         processing.fix_seed(p)
         upscaler = shared.sd_upscalers[upscaler_index]
 
-        p.extra_generation_params["StableDiffusion upscale overlap"] = overlap
-        p.extra_generation_params["StableDiffusion upscale upscaler"] = upscaler.name
+        p.extra_generation_params["stable_diffusion upscale overlap"] = overlap
+        p.extra_generation_params["stable_diffusion upscale upscaler"] = upscaler.name
 
         initial_info = None
         seed = p.seed
@@ -60,7 +60,7 @@ class Script(scripts.Plugin):
         batch_count = math.ceil(len(work) / batch_size)
         state.job_count = batch_count * upscale_count
 
-        print(f"StableDiffusion upscaling will process a total of {len(work)} images tiled as {len(grid.tiles[0][2])}x{len(grid.tiles)} per upscale in a total of {state.job_count} batches.")
+        print(f"stable_diffusion upscaling will process a total of {len(work)} images tiled as {len(grid.tiles[0][2])}x{len(grid.tiles)} per upscale in a total of {state.job_count} batches.")
 
         result_images = []
         for n in range(upscale_count):

@@ -7,7 +7,7 @@ from basicsr.utils.download_util import load_file_from_url
 
 from core.installing import move_files
 from core import modellib, plugins as arch, devicelib
-from useless.upscaler import Upscaler, UpscalerData
+from old.upscaler import Upscaler, UpscalerData
 from shared import opts
 from core.paths import rootdir, modeldir
 

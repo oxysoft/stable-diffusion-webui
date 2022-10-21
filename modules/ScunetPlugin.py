@@ -7,12 +7,12 @@ import numpy as np
 import torch
 from basicsr.utils.download_util import load_file_from_url
 
-import useless.upscaler
+import old.upscaler
 from core import modellib, devicelib
 from core.plugins import SCUNet as net
 
 
-class UpscalerScuNET(useless.upscaler.Upscaler):
+class UpscalerScuNET(old.upscaler.Upscaler):
     def __init__(self, dirname):
         self.name = "ScuNET"
         self.model_name = "ScuNET GAN"
@@ -32,13 +32,13 @@ class UpscalerScuNET(useless.upscaler.Upscaler):
             if name == self.model_name2 or file == self.model_url2:
                 add_model2 = False
             try:
-                scaler_data = useless.upscaler.UpscalerData(name, file, self, 4)
+                scaler_data = old.upscaler.UpscalerData(name, file, self, 4)
                 scalers.append(scaler_data)
             except Exception:
                 print(f"Error loading ScuNET model: {file}", file=sys.stderr)
                 print(traceback.format_exc(), file=sys.stderr)
         if add_model2:
-            scaler_data2 = useless.upscaler.UpscalerData(self.model_name2, self.model_url2, self)
+            scaler_data2 = old.upscaler.UpscalerData(self.model_name2, self.model_url2, self)
             scalers.append(scaler_data2)
         self.scalers = scalers
 

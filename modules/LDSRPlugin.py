@@ -5,7 +5,7 @@ import traceback
 from basicsr.utils.download_util import load_file_from_url
 
 from core.installing import move_files
-from useless.upscaler import Upscaler, UpscalerData
+from old.upscaler import Upscaler, UpscalerData
 from core.plugins import LDSR
 import shared
 from core.paths import rootdir, modeldir

@@ -84,7 +84,7 @@ def apply_checkpoint(p, x, xs):
     info = plugins.sd_models.get_closet_checkpoint_match(x)
     if info is None:
         raise RuntimeError(f"Unknown checkpoint: {x}")
-    plugins.sd_models.load_weights(shared.sd_model, info)
+    plugins.sd_models.load_into_standalone(shared.sd_model, info)
 
 
 def confirm_checkpoints(p, xs):
@@ -347,7 +347,7 @@ class Script(scripts.Plugin):
             images.save_image(processed.images[0], p.outpath_grids, "xy_grid", prompt=p.prompt, seed=processed.seed, grid=True, p=p)
 
         # restore checkpoint in case it was changed by axes
-        plugins.sd_models.load_weights(shared.sd_model)
+        plugins.sd_models.load_into_standalone(shared.sd_model)
 
         hypernetwork.load_hypernetwork(opts.sd_hypernetwork)
 

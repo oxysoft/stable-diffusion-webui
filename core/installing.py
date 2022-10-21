@@ -82,6 +82,8 @@ def git_clone(url, dir, name, commithash=None):
     if commithash is not None:
         run(f'"{git}" -C {dir} checkout {commithash}', None, "Couldn't checkout {name}'s hash: {commithash}")
 
+    sys.path.append(dir)
+
 
 def move_files(src_path: str, dest_path: str, ext_filter: str = None):
     try:

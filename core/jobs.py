@@ -1,4 +1,5 @@
 import uuid
+from abc import abstractmethod
 from datetime import datetime
 
 from tqdm import tqdm
@@ -14,8 +15,15 @@ class JobParams:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
+    @abstractmethod
+    def get_plugin_impl(self):
+        pass
+
     def plugin(self):
         return self.job.plugin()
+
+    def on_start(self, job):
+        pass
 
 
 class Job:
@@ -87,6 +95,8 @@ class JobQueue:
 
         self.queued.remove(job)
         self.processing.append(job)
+
+        job.p.on_start(job)
 
         webui.emit('started_job', job.job_id)
 
@@ -168,7 +178,14 @@ class JobTQDM:
             self.tqdm = None
 
 
-def get_job(job_id):
+def get(job_id):
+    """
+    Get a job by id.
+    The job must be queued or processing.
+    """
+    if isinstance(job_id, Job):
+        return job_id
+
     for job in queue.all:
         if job.job_id == job_id:
             return job
@@ -176,7 +193,7 @@ def get_job(job_id):
 
 
 def finish(job_id):
-    job = get_job(job_id)
+    job = get(job_id)
 
     job.update(1)
     queue.finish(job)
@@ -201,10 +218,10 @@ def enqueue(job):
     queue.enqueue(job)
 
 
-def new_job(plugid, jobname, parameters):
+def new_job(plugid, name, jobparams):
     global total_created
     total_created += 1
-    j = Job(plugid, jobname, parameters)
+    j = Job(plugid, name, jobparams)
     enqueue(j)
 
     return j
@@ -214,3 +231,16 @@ def new_job(plugid, jobname, parameters):
 queue = JobQueue()
 total_created = 0
 tqdm_total = JobTQDM()
+
+
+def is_processing(id):
+    """
+    Check if a job is processing (by ID)
+    """
+    j = get(id)
+    if j is not None:
+        return j in queue.processing
+
+
+def is_any_processing():
+    return len(queue.processing) > 0
