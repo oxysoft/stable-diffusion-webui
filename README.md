@@ -14,15 +14,14 @@ The in/out parameters allow to create node UI to chain plugin jobs, a list macro
 ## Contributions
 
 I launch directly with `webui.sh` on linux which handles basic pip requirements as in AUTOMATIC1111, and this script is pretty much unchanged.
-In Pycharm it also works to run `launch.py` for debugging, but either you have to launch the sI think it's using my local installed packages instead of venv, not exactly sure but it works.
-Otherwise it might require launching `webui.sh` first to get the venv which pycharm might automatically detect.
+In Pycharm it also works to run `launch.py` for debugging, but I'm not sure if it works because I launched `webui.sh` first or it might be using my local installed packages instead of venv, not exactly sure but it works and I can debug.
 
-I deleted the webui-user scripts since we won't be doing CLI arguments anymore, at least not in a way you would want to save them for configuration. There didn't seem to be anything else important for end users in the webui-user script but we may wanna review this. We'll do a proper configuration file for the core which has very basic things like the port for the server.
+I deleted the webui-user scripts since we won't be doing CLI arguments anymore, at least not in a way you would want to save them for configuration. There didn't seem to be anything else important for end users in the webui-user script but we may wanna review this, there seemed to be useful things for development purposes. We'll do a proper configuration file for the core which has basic things like the port for the server.
 
 Contribution points for anyone who'd like to help.
 
-- **Interactive Shell:** it would be cool to embed an interactive CLI interface into the server to use it without a UI, idk how to do this with flask though. (just using app.run() to launch it) 
-- **Plugins:** We already 'have' a bunch of plugins courtesy of AUTOMATIC1111, mainly upscalers. The code still needs to be ported for each of them. Then after that we can try to implement new ones.
+- **Interactive Shell:** it would be cool to embed an interactive CLI interface into the server to use it without a UI, idk how to do this with flask though. (right now we're simply launching through app.run()) 
+- **Plugins:** We already 'have' a bunch of plugins courtesy of AUTOMATIC1111 (mainly upscalers), the code still needs to be ported for each of them, however it's best to wait for the plugin and job API to solidify more as I'm working on the SD plugin. Then we can try to implement new ones. In the meantime...
    - We need a **Plugin Shell Script** (written in python) for the following features...
    - **Discovery:** Figure out how to host plugins on github and automatically collect them for listing. I'm pretty sure a bunch of other projects do it, it has to be possible somehow, maybe check with `https://vimawesome.com/` how they do it or if it's all manual.
    - **Creation:** Create a new plugin, ready to work on it and push to a repository. This is a directory with __init__ and a class extending `Plugin`, `stable_diffusion` is currently the best example we have. The directory will be used as its identifier for client/server communication so it should be all lowercase, and a valid module name so no dashes.
@@ -32,16 +31,17 @@ Contribution points for anyone who'd like to help.
 
 ### Coding Standards
 
-- **KISS:** We abid KISS, must be able to read and understood whole thing in under an hour. Always consider more than one approach, pick the simplest. More code is always fine, but most additional class, function, or even fields/properties should lead to some API review. We want as few moving parts as possible outside of functions.
-- **Documentation:** There is a severe lack of quality documentation in the world of programming, see `launch.py` for a good demo of proper documentation. Long methods are fine, but add big header comments with titles.
-- **Stability:** Don't use exceptions for simple stuff. Fail gracefully with an error message and default value instead of throwing an exception anywhere we can expect the possible states. Avoid crashing as much as possible, we should try to keep the backend core running when maxing out VRAM, maybe we can run plugins on separate processes so the backend can keep running even if a plugin results in OOM.  
-- **Orthogonality:** Avoid global states as much as possible, emphasis on locality. For example don't do any saving or logging as part of a job, only push some progress and output data and let the specifics be handled externally. Don't pass some huge bags of options, e.g. if you have a plugin with an option object pass the individual values you need. If they're defaults, architecture the code such as to be able to post-process the values and apply defaults.
-- **Unit Testing:** not planned for the first releases but test suites could certainly be useful, especially on individual plugins that might change a lot like StableDiffusionPlugin.
+- **KISS:** We abid KISS, must be able to read and understood whole thing in under an hour. Always consider more than one approach, pick the simplest. Adding more code to a function is always fine, but adding additional class, function, or even fields/properties introduces top-level complexity and should always lead to some API reflection.
+- **Documentation:** There is a severe lack of quality documentation in the world of programming, see `launch.py` for a good demo of proper documentation. Long methods are fine, but add big header comments with titles. Any code where it isn't immediately obvious _why we do it_ or _why that way exactly_, should be commented.
+- **Stability:** Don't use exceptions for simple stuff. Fail gracefully with an error message, recognize that the error state is possible as part of the API, and return a default value or ability to handle the error. The core must be able to remain up 24/7 for weeks at a time. We should try to keep the backend core running when maxing out VRAM, either by preventing or by running each plugin on separate web-core process so the backend can keep running even if a plugin results in OOM.  
+- **Orthogonality:** Huge emphasis on local responsabilities, e.g. don't do any saving or logging directly as part of a job. Instead, report the progress and output data, and let the specifics be handled externally by some other specialized component. Avoid passing some huge bags of options, and if there's a lot of default values put them in a nested option class for the related job, or architecture the code such as to be able to post-process the values and apply defaults inside the plugin itself.
+- **Unit Testing:** not planned currently but test suites could certainly be useful eventually, especially on individual plugins that might change a lot like StableDiffusionPlugin.
 
-### Formatting
+**Formatting:**
 - 4 spaces indent
 - Prefer Pathlib Path over filename strings
 
+The rest is all good, 
 
 ## Roadmap:
 1. ~Core backend components (server, jobs, plugins) to a usable state.~
