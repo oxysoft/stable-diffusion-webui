@@ -13,25 +13,27 @@ The in/out parameters allow to create node UI to chain plugin jobs, a list macro
 
 ## Contributions
 
-I launch directly with `webui.sh` on linux. In Pycharm it also works to run `launch.py` for debugging but I think it's using my local installed packages instead of venv, not exactly sure but it works.
-I've removed the webui-user scripts since we won't be doing CLI arguments anymore, at least not in a way you would want to save them for configuration. There didn't seem to be anything else important for end users in the webui-user script but we may wanna review this.
+I launch directly with `webui.sh` on linux which handles basic pip requirements as in AUTOMATIC1111, and this script is pretty much unchanged.
+In Pycharm it also works to run `launch.py` for debugging, but either you have to launch the sI think it's using my local installed packages instead of venv, not exactly sure but it works.
+Otherwise it might require launching `webui.sh` first to get the venv which pycharm might automatically detect.
+
+I deleted the webui-user scripts since we won't be doing CLI arguments anymore, at least not in a way you would want to save them for configuration. There didn't seem to be anything else important for end users in the webui-user script but we may wanna review this. We'll do a proper configuration file for the core which has very basic things like the port for the server.
 
 Contribution points for anyone who'd like to help.
 
 - **Interactive Shell:** it would be cool to embed an interactive CLI interface into the server to use it without a UI, idk how to do this with flask though. (just using app.run() to launch it) 
 - **Plugins:** We already 'have' a bunch of plugins courtesy of AUTOMATIC1111, mainly upscalers. The code still needs to be ported for each of them. Then after that we can try to implement new ones.
+   - We need a **Plugin Shell Script** (written in python) for the following features...
+   - **Discovery:** Figure out how to host plugins on github and automatically collect them for listing. I'm pretty sure a bunch of other projects do it, it has to be possible somehow, maybe check with `https://vimawesome.com/` how they do it or if it's all manual.
+   - **Creation:** Create a new plugin, ready to work on it and push to a repository. This is a directory with __init__ and a class extending `Plugin`, `stable_diffusion` is currently the best example we have. The directory will be used as its identifier for client/server communication so it should be all lowercase, and a valid module name so no dashes.
+   - **Update:** Update an existing plugin with git pull on it.
 - **UI:** we don't have a UI yet, I will write one in Dear ImGUI as soon as SD plugin is usable.
 - **Authentication:** session system to connect with a passwords, ssh, etc. no sharing without this obviously.
-- **Plugin Shell Script:**
-   - We need a CLI script to interact with plugins. (written in Python)
-   - Discoverery: Figure out how to host plugins on github and automatically collect them for listing.
-   - Creation: Create a new plugin, ready to work on it and push to a repository.
-   - Update: Update an existing plugin with git pull.
 
 ### Coding Standards
 
-- **KISS:** We abid KISS, must be able to read and understood whole thing in under an hour. Always consider more than one approach, pick the simplest. As few moving parts as possible.
-- **Documentation:** There is a severe lack of quality documentation in the world of programming. Long methods are fine, but add big header comments with titles. Check `launch.py` for recommended amount of documentation.
+- **KISS:** We abid KISS, must be able to read and understood whole thing in under an hour. Always consider more than one approach, pick the simplest. More code is always fine, but most additional class, function, or even fields/properties should lead to some API review. We want as few moving parts as possible outside of functions.
+- **Documentation:** There is a severe lack of quality documentation in the world of programming, see `launch.py` for a good demo of proper documentation. Long methods are fine, but add big header comments with titles.
 - **Stability:** Don't use exceptions for simple stuff. Fail gracefully with an error message and default value instead of throwing an exception anywhere we can expect the possible states. Avoid crashing as much as possible, we should try to keep the backend core running when maxing out VRAM, maybe we can run plugins on separate processes so the backend can keep running even if a plugin results in OOM.  
 - **Orthogonality:** Avoid global states as much as possible, emphasis on locality. For example don't do any saving or logging as part of a job, only push some progress and output data and let the specifics be handled externally. Don't pass some huge bags of options, e.g. if you have a plugin with an option object pass the individual values you need. If they're defaults, architecture the code such as to be able to post-process the values and apply defaults.
 - **Unit Testing:** not planned for the first releases but test suites could certainly be useful, especially on individual plugins that might change a lot like StableDiffusionPlugin.
@@ -51,7 +53,8 @@ Contribution points for anyone who'd like to help.
 
 Let me know if any other idea comes to mind
 
-* **StableDiffusion:** txt2img, img2img
+* **AUTO1111 StableDiffusion:** txt2img, img2img
+* **Diffusers StableDiffusion:** txt2img, img2img
 * **VQGAN+CLIP / PyTTI:** txt2img, img2img
 * **DiscoDiffusion:** txt2img, img2img
 * **CLIP Interrogate:** img2txt
