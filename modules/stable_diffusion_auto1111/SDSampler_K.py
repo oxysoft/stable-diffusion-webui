@@ -14,6 +14,8 @@ from core.cmdargs import cargs
 from core.printing import progress_print_out
 import k_diffusion.sampling
 
+from modules.stable_diffusion_auto1111 import SDJob
+
 sampler_extra_params = {
     'sample_euler': ['s_churn', 's_tmin', 's_tmax', 's_noise'],
     'sample_heun' : ['s_churn', 's_tmin', 's_tmax', 's_noise'],
@@ -35,14 +37,13 @@ def extended_trange(job, sampler, count, *args, **kwargs):
 
 
 class SDSampler_K(SDSampler):
-    def __init__(self, funcname, p, plugin):
-        super().__init__(p, plugin)
-        self.model_wrap = k_diffusion.external.CompVisDenoiser(p.model(), quantize=p.quantize)
-        self.p = p
+    def __init__(self, funcname, plugin):
+        super().__init__(plugin)
+        self.model_wrap = k_diffusion.external.CompVisDenoiser(plugin.model, quantize=plugin.opt.k_quantize)
         self.funcname = funcname
         self.kfunc = getattr(k_diffusion.sampling, self.funcname)  # The k-diffusion function name to call
         self.extra_params = sampler_extra_params.get(funcname, [])  # Extra params to pass to the k-diffusion function
-        self.model_wrap_cfg = CFGDenoiser(self.model_wrap)
+        self.model_wrap_cfg = CFGDenoiser(self.model_wrap, plugin)
         self.sampler_noises = None
         self.sampler_noise_index = 0
         self.stop_at = None
@@ -50,10 +51,10 @@ class SDSampler_K(SDSampler):
         self.default_eta = 1.0
         self.config = None
 
+
     class TorchHijack:
         def __init__(self, kdiff_sampler):
             self.kdiff_sampler = kdiff_sampler
-
         def __getattr__(self, item):
             if item == 'randn_like':
                 return self.kdiff_sampler.randn_like
@@ -64,7 +65,8 @@ class SDSampler_K(SDSampler):
             raise AttributeError("'{}' object has no attribute '{}'".format(type(self).__name__, item))
 
     def callback_state(self, d):
-        self.p.model().store_latent(d["denoised"])
+        self.p.store_latent(d["denoised"], self.p.job)
+
 
     def number_of_needed_noises(self, p):
         return p.steps
@@ -80,31 +82,7 @@ class SDSampler_K(SDSampler):
         self.sampler_noise_index += 1
         return res
 
-    def initialize(self, p):
-        self.model_wrap_cfg.mask = p.mask if hasattr(p, 'mask') else None
-        self.model_wrap_cfg.nmask = p.nmask if hasattr(p, 'nmask') else None
-        self.model_wrap.step = 0
-        self.sampler_noise_index = 0
-        self.eta = p.eta or p.eta_ancestral
-
-        if hasattr(k_diffusion.sampling, 'trange'):
-            k_diffusion.sampling.trange = lambda *args, **kwargs: extended_trange(self, *args, **kwargs)
-
-        if self.sampler_noises is not None:
-            k_diffusion.sampling.torch = SDSampler_K.TorchHijack(self)
-
-        # Pick extra params to send to the sampler and what the fuck is going on here
-        kwextra = {}
-        for param_name in self.extra_params:
-            if hasattr(p, param_name) and param_name in inspect.signature(self.kfunc).parameters:
-                kwextra[param_name] = getattr(p, param_name)
-
-        if 'eta' in inspect.signature(self.kfunc).parameters:
-            kwextra['eta'] = self.eta
-
-        return kwextra
-
-    def sample(self, p, x, conditioning, unconditional_conditioning, steps=None):
+    def sample(self, p:SDJob, x, conditioning, unconditional_conditioning, steps=None):
         steps = steps or p.steps
 
         if p.sampler_noise_scheduler_override:
@@ -124,6 +102,7 @@ class SDSampler_K(SDSampler):
                 kwextra['n'] = steps
         else:
             kwextra['sigmas'] = sigmas
+
         samples = self.kfunc(self.model_wrap_cfg, x, extra_args={'cond': conditioning, 'uncond': unconditional_conditioning, 'cond_scale': p.cfg}, disable=False, callback=self.callback_state, **kwextra)
         return samples
 
@@ -142,7 +121,7 @@ class SDSampler_K(SDSampler):
 
         kwextra = self.initialize(p)
         if 'sigma_min' in inspect.signature(self.kfunc).parameters:
-            ## last sigma is zero which isn't allowed by DPM Fast & Adaptive so taking value before last
+            # last sigma is zero which isn't allowed by DPM Fast & Adaptive so taking value before last
             kwextra['sigma_min'] = sigma_sched[-2]
         if 'sigma_max' in inspect.signature(self.kfunc).parameters:
             kwextra['sigma_max'] = sigma_sched[0]
@@ -155,4 +134,36 @@ class SDSampler_K(SDSampler):
 
         self.model_wrap_cfg.init_latent = x
 
-        return self.kfunc(self.model_wrap_cfg, xi, extra_args={'cond': conditioning, 'uncond': unconditional_conditioning, 'cond_scale': p.cfg}, disable=False, callback=self.callback_state, **kwextra)
+        with torch.autograd.profiler.profile() as prof:
+            ret = self.kfunc(self.model_wrap_cfg,
+                              xi,
+                              extra_args={'cond': conditioning, 'uncond': unconditional_conditioning, 'cond_scale': p.cfg},
+                              disable=False,
+                              callback=self.callback_state,
+                              **kwextra)
+        return ret
+
+    def initialize(self, p):
+        self.p = p
+        self.model_wrap_cfg.mask = p.mask if hasattr(p, 'mask') else None
+        self.model_wrap_cfg.nmask = p.nmask if hasattr(p, 'nmask') else None
+        self.model_wrap.step = 0
+        self.sampler_noise_index = 0
+        self.eta = p.eta or p.eta_ancestral
+
+        # if hasattr(k_diffusion.sampling, 'trange'):
+        #     k_diffusion.sampling.trange = lambda *args, **kwargs: extended_trange(self, *args, **kwargs)
+
+        if self.sampler_noises is not None:
+            k_diffusion.sampling.torch = SDSampler_K.TorchHijack(self)
+
+        # Pick extra params to send to the sampler and what the fuck is going on here
+        kwextra = {}
+        for param_name in self.extra_params:
+            if hasattr(p, param_name) and param_name in inspect.signature(self.kfunc).parameters:
+                kwextra[param_name] = getattr(p, param_name)
+
+        if 'eta' in inspect.signature(self.kfunc).parameters:
+            kwextra['eta'] = self.eta
+
+        return kwextra

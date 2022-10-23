@@ -5,12 +5,14 @@ import signal
 import sys
 import shlex
 
+import transformers
+
 from core.cmdargs import cargs
 from core.paths import repodir
 from core.installing import is_installed, run, git, git_clone, run_python, run_pip, repo_dir, python
 
 from core.paths import rootdir
-from modules.stable_diffusion.SDJob_txt2img import SDJob_txt2img
+from modules.stable_diffusion_auto1111.SDJob_txt2img import SDJob_txt2img
 
 taming_transformers_commit_hash = os.environ.get('TAMING_TRANSFORMERS_COMMIT_HASH', "24268930bf1dce879235a7fddd0b2355b84d7ea6")
 torch_command = os.environ.get('TORCH_COMMAND', "pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113")
@@ -63,6 +65,12 @@ def sigint_handler(sig, frame):
 
 
 xformers_available = False
+transformers.logging.set_verbosity_error()
+try:
+    from transformers import logging, CLIPModel
+    logging.set_verbosity_error()
+except Exception:
+    pass
 
 if __name__ == "__main__":
     print_info()
@@ -82,6 +90,10 @@ if __name__ == "__main__":
     args = shlex.split(commandline_args)
     sys.argv += args
     cargs = cmdargs.parser.parse_args(args)
+
+    # Prepare core
+    # ----------------------------------------
+    devicelib.set_precision(cargs.precision)
 
     # Prepare plugin system
     # ----------------------------------------
@@ -104,19 +116,26 @@ if __name__ == "__main__":
 
     # Dry run, only install and exit.
     # ----------------------------------------
+    # plugins.broadcast("load")
+    # plugins.job(SDJob_txt2img(prompt="Beautiful painting of an ultra contorted landscape by Greg Ruktowsky and Salvador Dali. airbrushed, 70s prog rock album cover, psychedelic, elaborate, complex",
+    #                           cfg=7.75,
+    #                           steps=22,
+    #                           sampler='euler-a',
+    #                           ))
+
+    # plugins.get("stable_diffusion_auto1111").txt2img()
+    # plugins.get("stable_diffusion_auto2222").load()
+    plugins.get("stable_diffusion_auto1111").load()
+
+    # plugins.get("stable_diffusion_auto2222").txt2img("Beautiful painting of an ultra contorted landscape by Greg Ruktowsky and Salvador Dali. airbrushed, 70s prog rock album cover, psychedelic, elaborate, complex")
+    plugins.get("stable_diffusion_auto1111").txt2img(SDJob_txt2img(prompt="Beautiful painting of an ultra contorted landscape by Greg Ruktowsky and Salvador Dali. airbrushed, 70s prog rock album cover, psychedelic, elaborate, complex"))
+
     if cargs.dry:
         print("Exiting because of --dry argument")
         exit(0)
 
     # Start server
     # ----------------------------------------
-    plugins.broadcast("launch")  # doubt we need this
-
-    plugins.job(SDJob_txt2img(prompt="Beautiful painting of an ultra contorted landscape by Greg Ruktowsky and Salvador Dali. airbrushed, 70s prog rock album cover, psychedelic, elaborate, complex",
-                              cfg=7.75,
-                              steps=22,
-                              sampler='euler-a',
-                              ))
 
     install_webui()
     start_webui()

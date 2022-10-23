@@ -1,8 +1,10 @@
+from typing import Any
+
 from core import paths
 from core.modellib import model_hash
 from core.printing import printerr
 from CheckpointInfo import CheckpointInfo
-
+from modules.stable_diffusion_auto1111.CheckpointInfo import CheckpointInfo
 
 class CheckpointLoader:
     """
@@ -10,15 +12,28 @@ class CheckpointLoader:
     Automatically detects all models in the directory and provides a list of CheckpointInfo
     A default model ID can be given to use as a default when none is specified by the user configuration.
     """
-    def __init__(self, subdirname, config, defaults=["model"]):
+
+    def __init__(self, subdirname, config, defaults=None, extensions=None):
+        if extensions is None:
+            extensions = ['ckpt', 'pt']
+        if defaults is None:
+            defaults = ["model"]
+
         self.all = []
         self.config = config
         self.dirpath = paths.modeldir / subdirname
         self.default_ids = defaults
+        self.extensions = extensions
 
         self.reload()
 
-    def get_default(self):
+    def get(self, id) -> CheckpointInfo | None:
+        for info in self.all:
+            if info.id == id:
+                return info
+        return None
+
+    def get_default(self) -> CheckpointInfo | None:
         # Go through the list of defaults first
         for id in self.default_ids:
             info = self.get(id)
@@ -31,43 +46,36 @@ class CheckpointLoader:
 
         return None
 
-    def checkpoint_ids(self):
-        return sorted([x.id for x in self.all])
-
-    def get_closet_checkpoint_match(self, searchstr):
+    def get_closest(self, searchstr) -> Any | None:
         applicable = sorted([info for info in self.all if searchstr in info.id], key=lambda x: len(x.id))
         if len(applicable) > 0:
             return applicable[0]
         return None
 
+    def get_ids(self) -> list:
+        return sorted([x.id for x in self.all])
+
     def reload(self):
         self.all.clear()
-        self.add_dir(self.dirpath)
+        self.add(self.dirpath)
 
     def add(self, path):
+        def add_file(path):
+            confpath = path.with_suffix(".yaml")
+            if not confpath.is_file():
+                confpath = self.config
+
+            self.all.append(CheckpointInfo(path, model_hash(path), confpath))
+
+        def add_dir(dirpath):
+            for e in self.extensions:
+                for p in dirpath.glob(f"*.{e}"):
+                    add_file(p)
+
         if path.exists():
             if path.is_dir():
-                self.add_dir(path)
+                add_dir(path)
             elif path.is_file():
-                self.add_file(path)
+                add_file(path)
         else:
             printerr(f"Path does not exist: {path}")
-
-    def add_dir(self, dirpath):
-        for path in dirpath.glob("*.ckpt"):
-            self.add_file(path)
-        for path in dirpath.glob("*.pt"):
-            self.add_file(path)
-
-    def add_file(self, path):
-        config = path.with_suffix(".yaml")
-        if not config.is_file():
-            config = self.config
-
-        self.all.append(CheckpointInfo(path, model_hash(path), config))
-
-    def get(self, id):
-        for info in self.all:
-            if info.id == id:
-                return info
-        return None

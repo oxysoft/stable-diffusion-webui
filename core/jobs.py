@@ -14,13 +14,16 @@ from core.printing import progress_print_out
 class JobParams:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        self.job: Job | None = None
 
     @abstractmethod
     def get_plugin_impl(self):
-        pass
+        # TODO it's probably much better to do this in the plugin and then iterate plugins to see which one can handle this jobparams
+        return None, None
 
+    @property
     def plugin(self):
-        return self.job.plugin()
+        return self.job.plugin
 
     def on_start(self, job):
         pass
@@ -46,10 +49,12 @@ class Job:
         self.image = None
         self.timestamp: str = datetime.now().strftime("%Y%m%d%H%M%S")  # shouldn't this return job_timestamp?
 
+    @property
     def plugin(self):
         import core.plugins
         return core.plugins.get(self.plugin_id)
 
+    @property
     def done(self):
         return self.progress == 1
 

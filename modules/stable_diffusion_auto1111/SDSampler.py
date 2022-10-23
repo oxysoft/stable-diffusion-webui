@@ -12,11 +12,6 @@ def setup_img2img_steps(p, steps=None, img2img_fix_steps=False):
     return steps, t_enc
 
 class SDSampler(metaclass=ABCMeta):
-    def __init__(self, p, plugin):
-        self.p = p
+    def __init__(self, plugin):
         self.plugin = plugin
-
-    @abstractmethod
-    def initialize(self, p):
-        self.p = p
-        pass
+        self.p = None # State parameters, set upon using the sampler

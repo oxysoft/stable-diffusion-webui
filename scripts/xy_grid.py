@@ -81,7 +81,7 @@ def confirm_samplers(p, xs):
 
 
 def apply_checkpoint(p, x, xs):
-    info = plugins.sd_models.get_closet_checkpoint_match(x)
+    info = plugins.sd_models.get_closest(x)
     if info is None:
         raise RuntimeError(f"Unknown checkpoint: {x}")
     plugins.sd_models.load_into_standalone(shared.sd_model, info)
@@ -89,7 +89,7 @@ def apply_checkpoint(p, x, xs):
 
 def confirm_checkpoints(p, xs):
     for x in xs:
-        if plugins.sd_models.get_closet_checkpoint_match(x) is None:
+        if plugins.sd_models.get_closest(x) is None:
             raise RuntimeError(f"Unknown checkpoint: {x}")
 
 

@@ -8,7 +8,8 @@ from core.paths import *
 cargs = None
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dry", type=str, help="Only install and test the core, do not launch server.")
+parser.add_argument("--dry", action='store_true', help="Only install and test the core, do not launch server.")
+parser.add_argument("--precision", type=str, help="evaluate at this precision", choices=["full", "autocast"], default="autocast")
 
 # parser.add_argument("--gfpgan-dir", type=str, help="GFPGAN directory", default=('./src/gfpgan' if os.path.exists('./src/gfpgan') else './GFPGAN'))
 # parser.add_argument("--gfpgan-model", type=str, help="GFPGAN model file name", default=None)
@@ -23,7 +24,6 @@ parser.add_argument("--dry", type=str, help="Only install and test the core, do 
 # parser.add_argument("--lowvram", action='store_true', help="enable stable diffusion model optimizations for sacrificing a lot of speed for very low VRM usage")
 # parser.add_argument("--always-batch-cond-uncond", action='store_true', help="disables cond/uncond batching that is enabled to save memory with --medvram or --lowvram")
 # parser.add_argument("--unload-gfpgan", action='store_true', help="does not do anything.")
-# parser.add_argument("--precision", type=str, help="evaluate at this precision", choices=["full", "autocast"], default="autocast")
 # parser.add_argument("--share", action='store_true', help="use share=True for gradio and make the UI accessible through their site (doesn't work for me but you might have better luck)")
 # parser.add_argument("--ngrok", type=str, help="ngrok authtoken, alternative to gradio --share", default=None)
 # parser.add_argument("--codeformer-models-path", type=str, help="Path to directory with codeformer model file(s).", default=modeldir / 'Codeformer')

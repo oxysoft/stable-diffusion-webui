@@ -26,6 +26,16 @@ def enable_tf32():
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 
+def set_precision(precision):
+    global dtype
+    global dtype_vae
+
+    if precision == 'full':
+        dtype = torch.float32
+        dtype_vae = torch.float32
+    elif precision == 'autocast':
+        dtype = torch.float16
+        dtype_vae = torch.float16
 
 def randn(seed, shape):
     # Pytorch currently doesn't handle setting randomness correctly when the metal backend is used.
@@ -80,3 +90,5 @@ dtype_vae = torch.float16
 # device = device
 
 device = get_optimal_device()
+
+print(device)

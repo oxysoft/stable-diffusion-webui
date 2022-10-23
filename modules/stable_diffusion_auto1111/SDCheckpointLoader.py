@@ -4,19 +4,17 @@ import bunch
 import torch
 from omegaconf import OmegaConf
 
-from core import devicelib
 from core.modellib import send_everything_to_cpu
 
 import CheckpointInfo
 from CheckpointLoader import CheckpointLoader
 
-from ldm.util import instantiate_from_config, ismap
-from core import plugins, devicelib, promptlib
+from ldm.util import instantiate_from_config
+from core import devicelib, promptlib
 
-from core.cmdargs import cargs
 from core.devicelib import device
-from core.options import opts
-from optimizations import setup_for_low_vram
+from modules.stable_diffusion_auto1111 import SDEmbeddingLoader
+from modules.stable_diffusion_auto1111 import StableDiffusionPlugin
 
 
 def get_state_dict_from_checkpoint(pl):
@@ -25,12 +23,14 @@ def get_state_dict_from_checkpoint(pl):
 
     return pl
 
+
 def flatten(elem):
     flattened = [flatten(children) for children in elem.children()]
     res = [elem]
     for c in flattened:
         res += c
     return res
+
 
 def get_target_prompt_token_count(token_count):
     return math.ceil(max(token_count, 1) / 75) * 75
@@ -47,11 +47,17 @@ def add_circular_option_to_conv_2d():
 
 
 class SDCheckpointLoader(CheckpointLoader):
-    def __init__(self, plugin, *kargs):
-        super().__init__(*kargs)
+    def __init__(self,
+                 plugin:StableDiffusionPlugin,
+                 embeddings:SDEmbeddingLoader,
+                 *kargs, **kwargs):
+        super().__init__(*kargs, **kwargs)
         self.plugin = plugin
-        # self.fixes = None
-        # self.comments = []
+        self.embeddings = embeddings
+        self.comma_padding_backtrack = True
+        self.enable_emphasis = True
+        self.CLIP_stop_at_last_layers = 1
+        self.fixes = None
 
     def opt(self):
         return self.plugin.opt
@@ -67,37 +73,22 @@ class SDCheckpointLoader(CheckpointLoader):
         if info is None:
             raise ValueError("Cannot load a null CheckpointInfo.")
 
-        print(f"Loading SD from: {info.configpath}")
         model = instantiate_from_config(OmegaConf.load(info.configpath).model)
         self.load_into(model, info)
 
         # Low VRAM opt
-        if self.plugin.opt.lowvram or self.plugin.opt.medvram: # we should call this what it actually is
-            setup_for_low_vram(model, self.plugin.opt.medvram)
+        if self.plugin.opt.lowvram or self.plugin.opt.medvram:  # we should call this what it actually is
+            self.plugin.setup_for_low_vram(model, self.plugin.opt.medvram)
         else:
             model.to(devicelib.device)
 
         self.hijack(model)
+        self.plugin.set_ldm_overrides()
+
         model.eval()
         model.info = info
 
         print(f"Model loaded.")
-        return model
-
-    def load_into_standalone(self, model, ickpt=None):
-        if self.plugin.opt.lowvram or self.plugin.opt.medvram: # we should call this what it actually is
-            send_everything_to_cpu()
-        else:
-            model.to(devicelib.cpu)
-
-        self.undo_hijack(model)
-        self.load_into(model, ickpt)
-        self.hijack(model)
-
-        if not self.plugin.opt.lowvram and not self.plugin.opt.medvram:
-            model.to(devicelib.device)
-
-        print(f"Weights loaded.")
         return model
 
     def load_into(self, model, info):
@@ -113,6 +104,8 @@ class SDCheckpointLoader(CheckpointLoader):
             print(f"Global Step: {pl['global_step']}")
 
         model.load_state_dict(get_state_dict_from_checkpoint(pl), strict=False)
+
+
         model.info = info
         model.state = bunch.Bunch()
         model.state.layers = flatten(model)
@@ -122,6 +115,9 @@ class SDCheckpointLoader(CheckpointLoader):
             model.to(memory_format=torch.channels_last)
         if not opt.no_half:
             model.half()
+
+        # self.plugin.set_ldm_overrides()
+        # model.eval()
 
         # TODO why is this here, what does this have to do with the model
         devicelib.dtype = torch.float32 if opt.no_half else torch.float16
@@ -137,6 +133,22 @@ class SDCheckpointLoader(CheckpointLoader):
 
         model.first_stage_model.to(devicelib.dtype_vae)
 
+    def reload_weights(self, model, ickpt=None):
+        if self.plugin.opt.lowvram or self.plugin.opt.medvram:  # we should call this what it actually is
+            send_everything_to_cpu()
+        else:
+            model.to(devicelib.cpu)
+
+        self.undo_hijack(model)
+        self.load_into(model, ickpt)
+        self.hijack(model)
+
+        if not self.plugin.opt.lowvram and not self.plugin.opt.medvram:
+            model.to(devicelib.device)
+
+        print(f"Weights loaded.")
+        return model
+
     def set_circular(self, model, enable):
         if model.state.get('circular_enabled') == enable:
             return
@@ -147,15 +159,19 @@ class SDCheckpointLoader(CheckpointLoader):
             layer.padding_mode = 'circular' if enable else 'zeros'
 
     def hijack(self, model):
+        """
+        Replace the CLIP embedder to support emphasis syntax and text invs embeddings.
+        """
+
         # Better embeddings... no clue what this does besides adding []() weight syntax
         model_embeddings = model.cond_stage_model.transformer.text_model.embeddings
         model_embeddings.token_embedding = EmbeddingsWithFixes(model_embeddings.token_embedding, self)
 
-        # Better CLIP... also dk what tis do
-        clip = FrozenCLIPEmbedderWithCustomWords(model.cond_stage_model, self)
-
-        model.cond_stage_model = clip
-        model.state.clip = clip
+        # Better CLIP i guess
+        embedder = FrozenCLIPEmbedderWithCustomWords(model.cond_stage_model, self)
+        model.cond_stage_model = embedder
+        model.state.embedder = embedder
+        model.state.original_cond_stage_model = model.cond_stage_model
 
     def undo_hijack(self, model):
         if type(model.cond_stage_model) == FrozenCLIPEmbedderWithCustomWords:
@@ -165,12 +181,15 @@ class SDCheckpointLoader(CheckpointLoader):
         if type(model_embeddings.token_embedding) == EmbeddingsWithFixes:
             model_embeddings.token_embedding = model_embeddings.token_embedding.wrapped
 
+
 class FrozenCLIPEmbedderWithCustomWords(torch.nn.Module):
     """
     oxy: I think this implements text inversions and other stuff
     """
-    def __init__(self, wrapped, hijack):
+
+    def __init__(self, wrapped, loader: SDCheckpointLoader):
         super().__init__()
+        self.loader = loader
         self.wrapped = wrapped
         self.tokenizer = wrapped.tokenizer
         self.token_mults = {}
@@ -193,9 +212,9 @@ class FrozenCLIPEmbedderWithCustomWords(torch.nn.Module):
                 self.token_mults[ident] = mult
 
     def process_text(self, texts):
+        # TODO I am honestly clueless what comments and fixes are referring to
         used_custom_terms = []
         remade_batch_tokens = []
-        hijack_comments = []
         hijack_fixes = []
         token_count = 0
 
@@ -205,7 +224,7 @@ class FrozenCLIPEmbedderWithCustomWords(torch.nn.Module):
             if line in cache:
                 remade_tokens, fixes, multipliers = cache[line]
             else:
-                remade_tokens, fixes, multipliers, current_token_count = self.tokenize_line(line, used_custom_terms, hijack_comments)
+                remade_tokens, fixes, multipliers, current_token_count = self.tokenize_line(line, used_custom_terms)
                 token_count = max(current_token_count, token_count)
 
                 cache[line] = (remade_tokens, fixes, multipliers)
@@ -214,12 +233,12 @@ class FrozenCLIPEmbedderWithCustomWords(torch.nn.Module):
             hijack_fixes.append(fixes)
             batch_multipliers.append(multipliers)
 
-        return batch_multipliers, remade_batch_tokens, used_custom_terms, hijack_comments, hijack_fixes, token_count
+        return batch_multipliers, remade_batch_tokens, used_custom_terms, hijack_fixes, token_count
 
-    def tokenize_line(self, line, used_custom_terms, hijack_comments):
+    def tokenize_line(self, line, used_custom_terms):
         id_end = self.wrapped.tokenizer.eos_token_id
 
-        if opts.enable_emphasis:
+        if self.loader.enable_emphasis:
             parsed = promptlib.parse_prompt_attention(line)
         else:
             parsed = [[line, 1.0]]
@@ -231,17 +250,20 @@ class FrozenCLIPEmbedderWithCustomWords(torch.nn.Module):
         multipliers = []
         last_comma = -1
 
-        # wtf is going on here, need comments
+        # TODO wtf is going on here, need comments
         for tokens, (text, weight) in zip(tokenized, parsed):
             i = 0
             while i < len(tokens):
                 token = tokens[i]
 
-                embedding, embedding_length_in_tokens = self.hijack.embedding_db.find_embedding_at_position(tokens, i)
+                embedding, embedding_length_in_tokens = self.loader.embeddings.find_embedding_at_position(tokens, i)
 
                 if token == self.comma_token:
                     last_comma = len(remade_tokens)
-                elif opts.comma_padding_backtrack != 0 and max(len(remade_tokens), 1) % 75 == 0 and last_comma != -1 and len(remade_tokens) - last_comma <= opts.comma_padding_backtrack:
+                elif self.loader.comma_padding_backtrack != 0 and \
+                        max(len(remade_tokens), 1) % 75 == 0 and \
+                        last_comma != -1 and \
+                        len(remade_tokens) - last_comma <= self.loader.comma_padding_backtrack:
                     last_comma += 1
                     reloc_tokens = remade_tokens[last_comma:]
                     reloc_mults = multipliers[last_comma:]
@@ -281,12 +303,13 @@ class FrozenCLIPEmbedderWithCustomWords(torch.nn.Module):
         return remade_tokens, fixes, multipliers, token_count
 
     def forward(self, text):
-        batch_multipliers, remade_batch_tokens, used_custom_terms, hijack_comments, hijack_fixes, token_count = self.process_text(text)
+        batch_multipliers, remade_batch_tokens, used_custom_terms, fixes, token_count = self.process_text(text)
 
-        self.hijack.comments += hijack_comments
+        loader = self.loader
 
-        if len(used_custom_terms) > 0:
-            self.hijack.comments.append("Used embeddings: " + ", ".join([f'{word} [{checksum}]' for word, checksum in used_custom_terms]))
+        # comments = hijack_comments
+        # if len(used_custom_terms) > 0:
+        #     comments.append("Used embeddings: " + ", ".join([f'{word} [{checksum}]' for word, checksum in used_custom_terms]))
 
         z = None
         i = 0
@@ -294,13 +317,13 @@ class FrozenCLIPEmbedderWithCustomWords(torch.nn.Module):
             rem_tokens = [x[75:] for x in remade_batch_tokens]
             rem_multipliers = [x[75:] for x in batch_multipliers]
 
-            self.hijack.fixes = []
-            for unfiltered in hijack_fixes:
+            loader.fixes = []
+            for unfiltered in fixes:
                 fixes = []
                 for fix in unfiltered:
                     if fix[0] == i:
                         fixes.append(fix[1])
-                self.hijack.fixes.append(fixes)
+                loader.fixes.append(fixes)
 
             tokens = []
             multipliers = []
@@ -326,10 +349,10 @@ class FrozenCLIPEmbedderWithCustomWords(torch.nn.Module):
         batch_multipliers = [[1.0] + x[:75] + [1.0] for x in batch_multipliers]
 
         tokens = torch.asarray(remade_batch_tokens).to(device)
-        outputs = self.wrapped.transformer(input_ids=tokens, output_hidden_states=-opts.CLIP_stop_at_last_layers)
+        outputs = self.wrapped.transformer(input_ids=tokens, output_hidden_states=-self.loader.CLIP_stop_at_last_layers)
 
-        if opts.CLIP_stop_at_last_layers > 1:
-            z = outputs.hidden_states[-opts.CLIP_stop_at_last_layers]
+        if self.loader.CLIP_stop_at_last_layers > 1:
+            z = outputs.hidden_states[-self.loader.CLIP_stop_at_last_layers]
             z = self.wrapped.transformer.text_model.final_layer_norm(z)
         else:
             z = outputs.last_hidden_state
@@ -346,14 +369,14 @@ class FrozenCLIPEmbedderWithCustomWords(torch.nn.Module):
 
 
 class EmbeddingsWithFixes(torch.nn.Module):
-    def __init__(self, wrapped, embeddings):
+    def __init__(self, wrapped, loader):
         super().__init__()
         self.wrapped = wrapped
-        self.embeddings = embeddings
+        self.loader = loader
 
     def forward(self, input_ids):
-        batch_fixes = self.embeddings.fixes
-        self.embeddings.fixes = None
+        batch_fixes = self.loader.fixes
+        self.loader.fixes = None
 
         inputs_embeds = self.wrapped(input_ids)
 
@@ -370,5 +393,3 @@ class EmbeddingsWithFixes(torch.nn.Module):
             vecs.append(tensor)
 
         return torch.stack(vecs)
-
-

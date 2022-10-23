@@ -4,8 +4,8 @@ from PIL.Image import Image
 
 from core import imagelib, devicelib
 from core.options import opts
-from modules.stable_diffusion.SDConstants import opt_C, opt_f
-from modules.stable_diffusion.SDJob import SDJob
+from modules.stable_diffusion_auto1111.SDConstants import opt_C, opt_f
+from modules.stable_diffusion_auto1111.SDJob import SDJob
 
 
 class SDJob_img2img(SDJob):
@@ -24,6 +24,8 @@ class SDJob_img2img(SDJob):
                  inpainting_mask_invert=0,
                  **kwargs):
         super().__init__(**kwargs)
+
+        #     "img2img_fix_steps"                  : OptionInfo(False, "With img2img, do exactly the amount of steps the slider specifies (normally you'd do less with less denoising)."),
 
         # p.extra_generation_params["Mask blur"] = mask_blur # What the fuck is thiat
         # is_inpaint = mode == 1  # TODO OUCH
@@ -62,7 +64,7 @@ class SDJob_img2img(SDJob):
         self.nmask = None
 
     def init(self, all_prompts, all_seeds, all_subseeds):
-        from modules.stable_diffusion.util import create_random_tensors, get_crop_region, expand_crop_region, fill, create_random_tensors
+        from modules.stable_diffusion_auto1111.SDUtil import create_random_tensors, get_crop_region, expand_crop_region, fill, create_random_tensors
         crop_region = None
 
         if self.image_mask is not None:
@@ -166,12 +168,12 @@ class SDJob_img2img(SDJob):
             elif self.inpainting_fill == 3:
                 self.init_latent = self.init_latent * self.mask
 
-    def sample(self, conditioning, unconditional_conditioning, seeds, subseeds, subseed_strength):
-        from modules.stable_diffusion.util import create_random_tensors
+    def sample(self, sampler, conditioning, unconditional_conditioning, seeds, subseeds, subseed_strength):
+        from modules.stable_diffusion_auto1111.SDUtil import create_random_tensors
         x = create_random_tensors([opt_C, self.height // opt_f, self.width // opt_f], seeds=seeds, subseeds=subseeds, subseed_strength=self.subseed.strength, seed_resize_from_h=self.subseed.resize_from_h, seed_resize_from_w=self.subseed.resize_from_w, p=self)
 
         # TODO get sampler from string
-        samples = self.sampler.sample_img2img(self, self.init_latent, x, conditioning, unconditional_conditioning)
+        samples = sampler.sample_img2img(self, self.init_latent, x, conditioning, unconditional_conditioning)
 
         if self.mask is not None:
             samples = samples * self.nmask + self.init_latent * self.mask

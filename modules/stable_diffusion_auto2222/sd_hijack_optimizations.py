@@ -6,81 +6,21 @@ import importlib
 import torch
 from torch import einsum
 
-from core.cmdargs import cargs
 from ldm.util import default
 from einops import rearrange
 
-# apply_hypernetwork, loaded_hypernetwork
-
-from core.devicelib import *
-from core.modellib import gpu
+import shared
+from hypernetworks import hypernetwork
 
 
-def setup_for_low_vram(sd_model, use_medvram):
-    parents = {}
+if shared.cmd_opts.xformers or shared.cmd_opts.force_enable_xformers:
+    try:
+        import xformers.ops
+        shared.xformers_available = True
+    except Exception:
+        print("Cannot import xformers", file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
 
-    def send_me_to_gpu(module, _):
-        """send this module to GPU; send whatever tracked module was previous in GPU to CPU;
-        we add this as forward_pre_hook to a lot of modules and this way all but one of them will
-        be in CPU
-        """
-        global module_in_gpu
-
-        module = parents.get(module, module)
-
-        if module_in_gpu == module:
-            return
-
-        if module_in_gpu is not None:
-            module_in_gpu.to(cpu)
-
-        module.to(gpu)
-        module_in_gpu = module
-
-    # see below for register_forward_pre_hook;
-    # first_stage_model does not use forward(), it uses encode/decode, so register_forward_pre_hook is
-    # useless here, and we just replace those methods
-    def first_stage_model_encode_wrap(self, encoder, x):
-        send_me_to_gpu(self, None)
-        return encoder(x)
-
-    def first_stage_model_decode_wrap(self, decoder, z):
-        send_me_to_gpu(self, None)
-        return decoder(z)
-
-    # remove three big modules, cond, first_stage, and unet from the model and then
-    # send the model to GPU. Then put modules back. the modules will be in CPU.
-    stored = sd_model.cond_stage_model.transformer, sd_model.first_stage_model, sd_model.model
-    sd_model.cond_stage_model.transformer, sd_model.first_stage_model, sd_model.model = None, None, None
-    sd_model.to(device)
-    sd_model.cond_stage_model.transformer, sd_model.first_stage_model, sd_model.model = stored
-
-    # register hooks for those the first two models
-    sd_model.cond_stage_model.transformer.register_forward_pre_hook(send_me_to_gpu)
-    sd_model.first_stage_model.register_forward_pre_hook(send_me_to_gpu)
-    sd_model.first_stage_model.encode = lambda x, en=sd_model.first_stage_model.encode: first_stage_model_encode_wrap(sd_model.first_stage_model, en, x)
-    sd_model.first_stage_model.decode = lambda z, de=sd_model.first_stage_model.decode: first_stage_model_decode_wrap(sd_model.first_stage_model, de, z)
-    parents[sd_model.cond_stage_model.transformer] = sd_model.cond_stage_model
-
-    if use_medvram:
-        sd_model.model.register_forward_pre_hook(send_me_to_gpu)
-    else:
-        diff_model = sd_model.model.diffusion_model
-
-        # the third remaining model is still too big for 4 GB, so we also do the same for its submodules
-        # so that only one of them is in GPU at a time
-        stored = diff_model.input_blocks, diff_model.middle_block, diff_model.output_blocks, diff_model.time_embed
-        diff_model.input_blocks, diff_model.middle_block, diff_model.output_blocks, diff_model.time_embed = None, None, None, None
-        sd_model.model.to(device)
-        diff_model.input_blocks, diff_model.middle_block, diff_model.output_blocks, diff_model.time_embed = stored
-
-        # install hooks for bits of third model
-        diff_model.time_embed.register_forward_pre_hook(send_me_to_gpu)
-        for block in diff_model.input_blocks:
-            block.register_forward_pre_hook(send_me_to_gpu)
-        diff_model.middle_block.register_forward_pre_hook(send_me_to_gpu)
-        for block in diff_model.output_blocks:
-            block.register_forward_pre_hook(send_me_to_gpu)
 
 # see https://github.com/basujindal/stable-diffusion/pull/117 for discussion
 def split_cross_attention_forward_v1(self, x, context=None, mask=None):
@@ -89,7 +29,7 @@ def split_cross_attention_forward_v1(self, x, context=None, mask=None):
     q_in = self.to_q(x)
     context = default(context, x)
 
-    context_k, context_v = apply_hypernetwork(loaded_hypernetwork, context)
+    context_k, context_v = hypernetwork.apply_hypernetwork(shared.loaded_hypernetwork, context)
     k_in = self.to_k(context_k)
     v_in = self.to_v(context_v)
     del context, context_k, context_v, x
@@ -117,65 +57,67 @@ def split_cross_attention_forward_v1(self, x, context=None, mask=None):
 
 
 # taken from https://github.com/Doggettx/stable-diffusion and modified
-def split_cross_attention_forward(self, x, context=None, mask=None):
-    h = self.heads
+def split_cross_attention_forward():
+    def fn(self, x, context=None, mask=None):
+        h = self.heads
 
-    q_in = self.to_q(x)
-    context = default(context, x)
+        q_in = self.to_q(x)
+        context = default(context, x)
 
-    context_k, context_v = apply_hypernetwork(loaded_hypernetwork, context)
-    k_in = self.to_k(context_k)
-    v_in = self.to_v(context_v)
+        context_k, context_v = hypernetwork.apply_hypernetwork(shared.loaded_hypernetwork, context)
+        k_in = self.to_k(context_k)
+        v_in = self.to_v(context_v)
 
-    k_in *= self.scale
+        k_in *= self.scale
 
-    del context, x
+        del context, x
 
-    q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q_in, k_in, v_in))
-    del q_in, k_in, v_in
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q_in, k_in, v_in))
+        del q_in, k_in, v_in
 
-    r1 = torch.zeros(q.shape[0], q.shape[1], v.shape[2], device=q.device, dtype=q.dtype)
+        r1 = torch.zeros(q.shape[0], q.shape[1], v.shape[2], device=q.device, dtype=q.dtype)
 
-    stats = torch.cuda.memory_stats(q.device)
-    mem_active = stats['active_bytes.all.current']
-    mem_reserved = stats['reserved_bytes.all.current']
-    mem_free_cuda, _ = torch.cuda.mem_get_info(torch.cuda.current_device())
-    mem_free_torch = mem_reserved - mem_active
-    mem_free_total = mem_free_cuda + mem_free_torch
+        stats = torch.cuda.memory_stats(q.device)
+        mem_active = stats['active_bytes.all.current']
+        mem_reserved = stats['reserved_bytes.all.current']
+        mem_free_cuda, _ = torch.cuda.mem_get_info(torch.cuda.current_device())
+        mem_free_torch = mem_reserved - mem_active
+        mem_free_total = mem_free_cuda + mem_free_torch
 
-    gb = 1024 ** 3
-    tensor_size = q.shape[0] * q.shape[1] * k.shape[1] * q.element_size()
-    modifier = 3 if q.element_size() == 2 else 2.5
-    mem_required = tensor_size * modifier
-    steps = 1
+        gb = 1024 ** 3
+        tensor_size = q.shape[0] * q.shape[1] * k.shape[1] * q.element_size()
+        modifier = 3 if q.element_size() == 2 else 2.5
+        mem_required = tensor_size * modifier
+        steps = 1
 
-    if mem_required > mem_free_total:
-        steps = 2 ** (math.ceil(math.log(mem_required / mem_free_total, 2)))
-        # print(f"Expected tensor size:{tensor_size/gb:0.1f}GB, cuda free:{mem_free_cuda/gb:0.1f}GB "
-        #       f"torch free:{mem_free_torch/gb:0.1f} total:{mem_free_total/gb:0.1f} steps:{steps}")
+        if mem_required > mem_free_total:
+            steps = 2 ** (math.ceil(math.log(mem_required / mem_free_total, 2)))
+            # print(f"Expected tensor size:{tensor_size/gb:0.1f}GB, cuda free:{mem_free_cuda/gb:0.1f}GB "
+            #       f"torch free:{mem_free_torch/gb:0.1f} total:{mem_free_total/gb:0.1f} steps:{steps}")
 
-    if steps > 64:
-        max_res = math.floor(math.sqrt(math.sqrt(mem_free_total / 2.5)) / 8) * 64
-        raise RuntimeError(f'Not enough memory, use lower resolution (max approx. {max_res}x{max_res}). '
-                           f'Need: {mem_required / 64 / gb:0.1f}GB free, Have:{mem_free_total / gb:0.1f}GB free')
+        if steps > 64:
+            max_res = math.floor(math.sqrt(math.sqrt(mem_free_total / 2.5)) / 8) * 64
+            raise RuntimeError(f'Not enough memory, use lower resolution (max approx. {max_res}x{max_res}). '
+                               f'Need: {mem_required / 64 / gb:0.1f}GB free, Have:{mem_free_total / gb:0.1f}GB free')
 
-    slice_size = q.shape[1] // steps if (q.shape[1] % steps) == 0 else q.shape[1]
-    for i in range(0, q.shape[1], slice_size):
-        end = i + slice_size
-        s1 = einsum('b i d, b j d -> b i j', q[:, i:end], k)
+        slice_size = q.shape[1] // steps if (q.shape[1] % steps) == 0 else q.shape[1]
+        for i in range(0, q.shape[1], slice_size):
+            end = i + slice_size
+            s1 = einsum('b i d, b j d -> b i j', q[:, i:end], k)
 
-        s2 = s1.softmax(dim=-1, dtype=q.dtype)
-        del s1
+            s2 = s1.softmax(dim=-1, dtype=q.dtype)
+            del s1
 
-        r1[:, i:end] = einsum('b i j, b j d -> b i d', s2, v)
-        del s2
+            r1[:, i:end] = einsum('b i j, b j d -> b i d', s2, v)
+            del s2
 
-    del q, k, v
+        del q, k, v
 
-    r2 = rearrange(r1, '(b h) n d -> b n (h d)', h=h)
-    del r1
+        r2 = rearrange(r1, '(b h) n d -> b n (h d)', h=h)
+        del r1
 
-    return self.to_out(r2)
+        return self.to_out(r2)
+    return fn
 
 
 def check_for_psutil():
@@ -241,7 +183,7 @@ def einsum_op_cuda(q, k, v):
     mem_free_torch = mem_reserved - mem_active
     mem_free_total = mem_free_cuda + mem_free_torch
     # Divide factor of safety as there's copying and fragmentation
-    return self.einsum_op_tensor_mem(q, k, v, mem_free_total / 3.3 / (1 << 20))
+    return einsum_op_tensor_mem(q, k, v, mem_free_total / 3.3 / (1 << 20))
 
 def einsum_op(q, k, v):
     if q.device.type == 'cuda':
@@ -262,7 +204,7 @@ def split_cross_attention_forward_invokeAI(self, x, context=None, mask=None):
     q = self.to_q(x)
     context = default(context, x)
 
-    context_k, context_v = apply_hypernetwork(loaded_hypernetwork, context)
+    context_k, context_v = hypernetwork.apply_hypernetwork(shared.loaded_hypernetwork, context)
     k = self.to_k(context_k) * self.scale
     v = self.to_v(context_v)
     del context, context_k, context_v, x
@@ -278,7 +220,7 @@ def xformers_attention_forward(self, x, context=None, mask=None):
     q_in = self.to_q(x)
     context = default(context, x)
 
-    context_k, context_v = apply_hypernetwork(loaded_hypernetwork, context)
+    context_k, context_v = hypernetwork.apply_hypernetwork(shared.loaded_hypernetwork, context)
     k_in = self.to_k(context_k)
     v_in = self.to_v(context_v)
 
@@ -356,10 +298,16 @@ def xformers_attnblock_forward(self, x):
     try:
         h_ = x
         h_ = self.norm(h_)
-        q1 = self.q(h_).contiguous()
-        k1 = self.k(h_).contiguous()
-        v = self.v(h_).contiguous()
-        out = xformers.ops.memory_efficient_attention(q1, k1, v)
+        q = self.q(h_)
+        k = self.k(h_)
+        v = self.v(h_)
+        b, c, h, w = q.shape
+        q, k, v = map(lambda t: rearrange(t, 'b c h w -> b (h w) c'), (q, k, v))
+        q = q.contiguous()
+        k = k.contiguous()
+        v = v.contiguous()
+        out = xformers.ops.memory_efficient_attention(q, k, v)
+        out = rearrange(out, 'b (h w) c -> b c h w', h=h)
         out = self.proj_out(out)
         return x + out
     except NotImplementedError:

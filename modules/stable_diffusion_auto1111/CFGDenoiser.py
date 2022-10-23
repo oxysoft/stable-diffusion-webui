@@ -6,19 +6,21 @@ from core.cmdargs import cargs
 
 class CFGDenoiser(torch.nn.Module):
     """
-    magic code by katherine crowson
+    magic code by katherine crowson and auto1111 san
     """
 
-    def __init__(self, model):
+    def __init__(self, model, plugin):
         super().__init__()
         self.inner_model = model
+        self.plugin = plugin
         self.mask = None
         self.nmask = None
         self.init_latent = None
         self.step = 0
 
     def forward(self, x, sigma, uncond, cond, cond_scale):
-        batch_cond_uncond = cargs.always_batch_cond_uncond or not (cargs.lowvram or cargs.medvram)
+        opt = self.plugin.opt
+        batch_cond_uncond = opt.always_batch_cond_uncond or not opt.lowvram and not opt.medvram
 
         conds_list, tensor = promptlib.reconstruct_multicond_batch(cond, self.step)
         uncond = promptlib.reconstruct_cond_batch(uncond, self.step)

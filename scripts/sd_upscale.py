@@ -60,7 +60,7 @@ class Script(scripts.Plugin):
         batch_count = math.ceil(len(work) / batch_size)
         state.job_count = batch_count * upscale_count
 
-        print(f"stable_diffusion upscaling will process a total of {len(work)} images tiled as {len(grid.tiles[0][2])}x{len(grid.tiles)} per upscale in a total of {state.job_count} batches.")
+        print(f"stable_diffusion upscaling will process {len(work)} images tiled as {len(grid.tiles[0][2])}x{len(grid.tiles)} per upscale in a total of {state.job_count} batches.")
 
         result_images = []
         for n in range(upscale_count):

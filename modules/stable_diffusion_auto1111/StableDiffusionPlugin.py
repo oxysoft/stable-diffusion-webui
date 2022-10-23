@@ -1,23 +1,31 @@
 # some of those options should not be changed at all because they would break the model, so I removed them from options.
+import math
 from collections import namedtuple
+from ctypes import Union
 from datetime import datetime
 from enum import Enum
+import platform
 
 import tqdm
+from einops import rearrange
+from numpy import einsum
 
-from core.jobs import Job
+from core.jobs import Job, JobParams
 from SDJob import SDJob
 from SDJob_img2img import SDJob_img2img
 from SDJob_txt2img import SDJob_txt2img
 from SDJob_train_embedding import SDJob_train_embedding
 from SDCheckpointLoader import SDCheckpointLoader
-from optimizations import invokeAI_mps_available
+from core.printing import printerr
+from modules.stable_diffusion_auto1111.HypernetworkLoader import HypernetworkLoader
+from modules.stable_diffusion_auto1111.SDSampler import SDSampler
+from modules.stable_diffusion_auto1111.SDEmbeddingLoader import SDEmbeddingLoader
 from Hypernetwork import Hypernetwork
 from TextInvDataset import TextInvDataset
 from TextinvLearnSchedule import TextinvLearnSchedule
 from SDSampler_K import SDSampler_K
 from SDSampler_Vanilla import SDSampler_Vanilla
-from util import *
+from SDUtil import *
 from core.modellib import *
 from core.installing import git_clone, move_files
 from core.options import *
@@ -32,6 +40,7 @@ import SDConstants
 import ldm
 import ldm.modules.attention
 import ldm.modules.diffusionmodules.model
+from ldm.util import default
 
 ldm_crossattention_forward = ldm.modules.attention.CrossAttention.forward
 ldm_nonlinearity = ldm.modules.diffusionmodules.model.nonlinearity
@@ -44,7 +53,7 @@ ldm_attnblock_forward = ldm.modules.diffusionmodules.model.AttnBlock.forward
 
 class StableDiffusionAttention(Enum):
     LDM = 0
-    SPLIT_V1 = 1
+    SPLIT_BASUJINDAL = 1
     SPLIT_INVOKE = 2
     SPLIT_DOGGETT = 3
     XFORMERS = 4
@@ -54,55 +63,49 @@ class StableDiffusionPlugin(Plugin):
     class Options:
         def __init__(self, plugin):
             # tpl.update(options_section(('sd', "Stable Diffusion"), {
-            #     "sd_hypernetwork"                    : OptionInfo("None", "Stable Diffusion finetune hypernetwork", gradio.Dropdown, lambda: {"choices": ["None"] + [x for x in self.hypernetworks_info.keys()]}),
-            #     "img2img_color_correction"           : OptionInfo(False, "Apply color correction to img2img results to match original colors."),
-            #     "save_images_before_color_correction": OptionInfo(False, "Save a copy of image before applying color correction to img2img results"),
-            #     "img2img_fix_steps"                  : OptionInfo(False, "With img2img, do exactly the amount of steps the slider specifies (normally you'd do less with less denoising)."),
             #     "enable_quantization"                : OptionInfo(False, "Enable quantization in K samplers for sharper and cleaner results. This may change existing seeds. Requires restart to apply."),
             #     "enable_emphasis"                    : OptionInfo(True, "Emphasis: use (text) to make model pay more attention to text and [text] to make it pay less attention"),
-            #     "use_old_emphasis_implementation"    : OptionInfo(False, "Use old emphasis implementation. Can be useful to reproduce old seeds."),
-            #     "enable_batch_seeds"                 : OptionInfo(True, "Make K-diffusion samplers produce same images in a batch as when making a single image"),
             #     "comma_padding_backtrack"            : OptionInfo(20, "Increase coherency by padding from the last comma within n tokens when using more than 75 tokens", gradio.Slider, {"minimum": 0, "maximum": 74, "step": 1}),
             #     "filter_nsfw"                        : OptionInfo(False, "Filter NSFW content"),
             #     'CLIP_stop_at_last_layers'           : OptionInfo(1, "Stop At last layers of CLIP model", gradio.Slider, {"minimum": 1, "maximum": 12, "step": 1}),
             # }))
             #
-            # tpl.update(options_section(('sampler-params', "Sampler parameters"), {
-            #     "hide_samplers"       : OptionInfo([], "Hide samplers in user interface (requires restart)", gradio.CheckboxGroup, lambda: {"choices": [x.name for x in self.all_samplers]}),
-            #     "eta_ancestral"       : OptionInfo(1.0, "eta (noise multiplier) for ancestral samplers", gradio.Slider, {"minimum": 0.0, "maximum": 1.0, "step": 0.01}),
-            #     'eta_noise_seed_delta': OptionInfo(0, "Eta noise seed delta", gradio.Number, {"precision": 0}),
-            # }))
 
             # Defaults
-            self.configpath = plugin.get_repo_dir() / "configs/stable_diffusion/v1-inference.yaml"
+            self.configpath = plugin.get_repo_dir() / "configs/stable-diffusion/v1-inference.yaml"
             self.ckptpath = ""
             self.lowvram = False
-            self.medvram = False
+            self.medvram = True
             self.opt_channelslast = False
-            self.no_half = False
+            self.no_half = True
             self.no_half_vae = False
             self.vae_override = ""
-
-            self.attention = StableDiffusionAttention.LDM
-            # self.opt_split_attention_invokeai = None
-            # self.opt_split_attention_v1 = None
-            # self.disable_opt_split_attention = None
+            self.attention = StableDiffusionAttention.SPLIT_DOGGETT
+            self.k_quantize = True
+            self.always_batch_cond_uncond = True
 
     def __init__(self, dirpath=None):
         super().__init__(dirpath)
+
         self.opt = StableDiffusionPlugin.Options(self)  # TODO some way to store and load this
-        self.checkpoints = SDCheckpointLoader(
-                self,
-                constants.model_dirname,
-                self.opt.configpath,
-                ["model", "sd-v1-4"])
+        self.embeddings = SDEmbeddingLoader(paths.rootdir / "embeddings")
+        self.hypernetworks = HypernetworkLoader("hypernetworks", None)
+        self.checkpoints = SDCheckpointLoader(self,
+                                              self.embeddings,
+                                              SDConstants.model_dirname,
+                                              self.opt.configpath,
+                                              ["model", "sd-v1-4"])
+
+        self.hypernetwork = None  # Hypernetwork currently in use, loaded through HypernetworkLoader
         self.model = None  # Model currently in use, loaded through SDCheckpointLoader
         self.samplers = []  # List of SamplerData we can use
-        # self.embeddings = StableDiffusionEmbeddingCollection(
-        #         self,
-        #         config.model_dirname,
-        #         self.opt.configpath,
-        #         ["model", "sd-v1-4"])
+        self.module_in_gpu = None
+
+    def get_repo_dir(self) -> Path:
+        return repodir / "stable_diffusion"
+
+    def allow_parallel_processing(self):
+        return not self.opt.lowvram and not self.opt.medvram
 
     def title(self):
         return "The official stable_diffusion plugin, adapted from AUTOMATIC1111's code."
@@ -114,21 +117,14 @@ class StableDiffusionPlugin(Plugin):
         git_clone("https://github.com/CompVis/stable-diffusion.git", repodir / 'stable_diffusion', "Stable Diffusion", stable_diffusion_commit_hash)
         git_clone("https://github.com/crowsonkb/k-diffusion.git", repodir / 'k-diffusion', "K-diffusion", k_diffusion_commit_hash)
 
-        # Idk what is the point of this code, it should be installed in one place......... we only need one valid place TODO
         repo = self.get_repo_dir()
         assert repo.is_dir() is not None, f"Couldn't find Stable Diffusion in {repo}"
 
-        # TODO install xformers if enabled in opts
+        # TODO install xformers if enabled
         if self.opt.attention == StableDiffusionAttention.XFORMERS:
             import xformers.ops
 
         # TODO install mps if invoke attention
-
-    def get_repo_dir(self) -> Path:
-        return repodir / "stable_diffusion"
-
-    def allow_parallel_processing(self):
-        return not self.opt.lowvram and not self.opt.medvram
 
     # noinspection PyUnresolvedReferences
     def load(self):
@@ -139,45 +135,43 @@ class StableDiffusionPlugin(Plugin):
         # ldm.models.diffusion.plms.tqdm = lambda *args, desc=None, **kwargs: extended_tdqm(*args, desc=desc, **kwargs)
 
         samplers_k_diffusion = [
-            ('Euler a', 'sample_euler_ancestral', ['k_euler_a'], {}),
-            ('Euler', 'sample_euler', ['k_euler'], {}),
-            ('LMS', 'sample_lms', ['k_lms'], {}),
-            ('Heun', 'sample_heun', ['k_heun'], {}),
-            ('DPM2', 'sample_dpm_2', ['k_dpm_2'], {}),
+            ('Euler a', 'sample_euler_ancestral', ['euler-a', 'k_euler_a'], {}),
+            ('Euler', 'sample_euler', ['euler', 'k_euler'], {}),
+            ('LMS', 'sample_lms', ['lms', 'k_lms'], {}),
+            ('Heun', 'sample_heun', ['heun', 'k_heun'], {}),
+            ('DPM2', 'sample_dpm_2', ['dpm2', 'k_dpm_2'], {}),
             ('DPM2 a', 'sample_dpm_2_ancestral', ['k_dpm_2_a'], {}),
-            ('DPM fast', 'sample_dpm_fast', ['k_dpm_fast'], {}),
-            ('DPM adaptive', 'sample_dpm_adaptive', ['k_dpm_ad'], {}),
-            ('LMS Karras', 'sample_lms', ['k_lms_ka'], {'scheduler': 'karras'}),
-            ('DPM2 Karras', 'sample_dpm_2', ['k_dpm_2_ka'], {'scheduler': 'karras'}),
-            ('DPM2 a Karras', 'sample_dpm_2_ancestral', ['k_dpm_2_a_ka'], {'scheduler': 'karras'}),
+            ('DPM fast', 'sample_dpm_fast', ['dpm-fast', 'k_dpm_fast'], {}),
+            ('DPM adaptive', 'sample_dpm_adaptive', ['dpm-adaptive', 'k_dpm_ad'], {}),
+            ('LMS Karras', 'sample_lms', ['lms-ka', 'k_lms_ka'], {'scheduler': 'karras'}),
+            ('DPM2 Karras', 'sample_dpm_2', ['dpm2-ka', 'k_dpm2_ka'], {'scheduler': 'karras'}),
+            ('DPM2 a Karras', 'sample_dpm_2_ancestral', ['dpm2-a-ka', 'k_dpm_2_a_ka'], {'scheduler': 'karras'}),
         ]
 
         # All sampler data, both k-diffusion + ddpm
         SamplerData = namedtuple('SamplerData', ['name', 'constructor', 'aliases', 'options'])
         self.samplers = [
             *[
-                SamplerData(label, lambda model, funcname=funcname: SDSampler_K(funcname, model), aliases, options)
-                for label, funcname, aliases, options in samplers_k_diffusion
+                SamplerData(id, lambda model, funcname=funcname: SDSampler_K(funcname, self), aliases, options)
+                for id, funcname, aliases, options
+                in samplers_k_diffusion
                 if hasattr(k_diffusion.sampling, funcname)
             ],
-            SamplerData('DDIM', lambda model: SDSampler_Vanilla(ldm.models.diffusion.ddim.DDIMSampler, model), [], {}),
-            SamplerData('PLMS', lambda model: SDSampler_Vanilla(ldm.models.diffusion.plms.PLMSSampler, model), [], {}),
+            SamplerData('ddim', lambda model: SDSampler_Vanilla(ldm.models.diffusion.ddim.DDIMSampler, self), [], {}),
+            SamplerData('plms', lambda model: SDSampler_Vanilla(ldm.models.diffusion.plms.PLMSSampler, self), [], {}),
         ]
 
         self.checkpoints.reload()
         self.model = self.checkpoints.load(self.checkpoints.get_default())
 
+    def get_sampler(self, id) -> SDSampler | None:
+        for sampler in self.samplers:
+            if id == sampler.name or id in sampler.aliases:
+                return sampler.constructor(self.model)
+        return None
+
     def unload(self):
-        move_files(paths.modeldir, paths.modeldir / SDConstants.model_dirname, ".ckpt")  # TODO idk what this is for
-
-    def on_step_start(self, latent):
-        pass
-
-    def on_step_condfn(self):
-        pass
-
-    def on_step_end(self):
-        pass
+        move_files(paths.modeldir, paths.modeldir / SDConstants.model_dirname, ".ckpt")  # TODO this looks very redundant
 
     def jobs(self):
         return dict(txt2img=self.txt2img,
@@ -190,9 +184,10 @@ class StableDiffusionPlugin(Plugin):
         """
         return [x.title for x in self.checkpoints.all]
 
+    # region Jobs
     def txt2img(self, p: SDJob_txt2img):
         j = self.new_job('txt2img', p)
-        self.gen(j)
+        return self.gen(j)
 
     def img2img(self, p: SDJob_img2img):
         fix_seed(p)
@@ -201,55 +196,14 @@ class StableDiffusionPlugin(Plugin):
 
         # print(f"Will process {len(images)} images, creating {p.n_iter * p.batch_size} new images for each.")
 
-    def reset_ldm_overrides(self):
-        ldm.modules.attention.CrossAttention.forward = ldm_crossattention_forward
-        ldm.modules.diffusionmodules.model.nonlinearity = ldm_nonlinearity
-        ldm.modules.diffusionmodules.model.AttnBlock.forward = ldm_attnblock_forward
-
-    def set_ldm_overrides(self):
-        # noinspection PyUnresolvedReferences
-        from optimizations import \
-            xformers_attention_forward, \
-            xformers_attnblock_forward, \
-            split_cross_attention_forward_v1, \
-            split_cross_attention_forward_invokeAI, \
-            split_cross_attention_forward, \
-            cross_attention_attnblock_forward
-
-        ldm.modules.diffusionmodules.model.nonlinearity = torch.nn.functional.silu
-        mode = self.opt.attention
-
-        if not invokeAI_mps_available and devicelib.device.type == 'mps':
-            print("Cannot use InvokeAI cross attention optimization for MPS without psutil package, which is not installed.")
-            print("Reverting to LDM.")
-            mode = StableDiffusionAttention.LDM
-
-        if mode == StableDiffusionAttention.XFORMERS:
-            if not (torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devicelib.device) <= (8, 6)):
-                print("Cannot use xformers attention with the current CUDA version or GPU. Reverting to LDM")
-                mode = StableDiffusionAttention.LDM
-
-        if mode == StableDiffusionAttention.XFORMERS and torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devicelib.device) <= (8, 6):
-            print("Applying xformers cross attention optimization.")
-            ldm.modules.attention.CrossAttention.forward = xformers_attention_forward
-            ldm.modules.diffusionmodules.model.AttnBlock.forward = xformers_attnblock_forward
-        elif mode == StableDiffusionAttention.SPLIT_V1:
-            print("Applying v1 cross attention optimization.")
-            ldm.modules.attention.CrossAttention.forward = split_cross_attention_forward_v1
-        elif mode == StableDiffusionAttention.SPLIT_INVOKE or not torch.cuda.is_available():
-            print("Applying cross attention optimization (InvokeAI).")
-            ldm.modules.attention.CrossAttention.forward = split_cross_attention_forward_invokeAI
-        elif mode == StableDiffusionAttention.SPLIT_DOGGETT:
-            print("Applying cross attention optimization (Doggettx).")
-            ldm.modules.attention.CrossAttention.forward = split_cross_attention_forward
-            ldm.modules.diffusionmodules.model.AttnBlock.forward = cross_attention_attnblock_forward
-
     def gen(self, job: Job):
         """
         this is the main loop that both txt2img and img2img use;
         it calls func_init once inside all the scopes and func_sample once per batch
         """
         p: SDJob = job.p
+
+        self.set_ldm_overrides()
 
         if type(p.prompt) == list:
             assert (len(p.prompt) > 0)
@@ -263,11 +217,10 @@ class StableDiffusionPlugin(Plugin):
 
         self.checkpoints.set_circular(self.model, p.tiling)
 
-        comments = {}
-
         # shared.prompt_styles.apply_styles(p)
 
-        # Prepare the seeds ......................
+        # Seed preparation
+        # ----------------------------------------
         if type(p.prompt) == list:
             all_prompts = p.prompt
         else:
@@ -283,16 +236,12 @@ class StableDiffusionPlugin(Plugin):
         else:
             all_subseeds = [int(subseed) + x for x in range(len(all_prompts))]
 
-        # TODO get embeddings from self.embeddings, or implement them with an hijack plugin? idk
-        # if Path(cargs.embeddings_dir).exists():
-        #     model_hijack.embedding_db.load_textual_inversion_embeddings()
-
-        # infotexts = []
-        # def infotext(iteration=0, position_in_batch=0):
-        #     return create_infotext(p, all_prompts, all_seeds, all_subseeds, comments, iteration, position_in_batch)
-
-        # Start rendering ...........................................
+        # Start rendering
+        # ----------------------------------------
         from core.devicelib import autocast
+
+        self.embeddings.reload(self.model)
+        sampler = self.get_sampler(p.sampler)
 
         output_images = []
 
@@ -302,7 +251,7 @@ class StableDiffusionPlugin(Plugin):
                 p.init(all_prompts, all_seeds, all_subseeds)
 
             # Execute the job
-            for n in range(p.n_iter):  # I dont recommend using this but ok
+            for n in range(p.n_iter):  # TODO we dont need this, we can just run the job multiple times
                 if job.aborted:
                     break
 
@@ -314,27 +263,23 @@ class StableDiffusionPlugin(Plugin):
                 if len(prompts) == 0:
                     break
 
-                # Prompt conditionings.................................
+                # Conditioning ----------------------------------------
                 # uc = p.sd_model.get_learned_conditioning(len(prompts) * [p.negative_prompt])
                 # c = p.sd_model.get_learned_conditioning(prompts)
                 with autocast():
                     uc = promptlib.get_learned_conditioning(self.model, len(prompts) * [p.promptneg], p.steps)
                     c = promptlib.get_multicond_learned_conditioning(self.model, prompts, p.steps)
 
-                # Wtf is this??????
-                if len(self.model.comments) > 0:
-                    for comment in self.model.comments:
-                        comments[comment] = 1
-
-                # Sampling -----------------------------------
+                # Sampling ----------------------------------------
                 with autocast():
-                    samples_ddim = p.sample(conditioning=c,
+                    samples_ddim = p.sample(sampler,
+                                            conditioning=c,
                                             unconditional_conditioning=uc,
                                             seeds=seeds,
                                             subseeds=subseeds,
                                             subseed_strength=p.subseed.strength)
 
-                # Use what's done
+                # Output ----------------------------------------
                 if job.aborted:
                     samples_ddim = job.latent
 
@@ -351,17 +296,10 @@ class StableDiffusionPlugin(Plugin):
                 del x_samples_ddim
                 devicelib.torch_gc()
 
+        self.reset_ldm_overrides()
+
         devicelib.torch_gc()
-        # return JobResult(p,
-        #                  output_images,
-        #                  all_seeds[0],
-        #                  infotext() + "".join(["\n\n" + x for x in comments]),
-        #                  subseed=all_subseeds[0],
-        #                  all_prompts=all_prompts,
-        #                  all_seeds=all_seeds,
-        #                  all_subseeds=all_subseeds,
-        #                  index_of_first_image=index_of_first_image,
-        #                  infotexts=infotexts)
+        return output_images
 
     # def get_correct_sampler(self, p):
     #     if isinstance(p, SDJob_txt2img):
@@ -504,16 +442,11 @@ class StableDiffusionPlugin(Plugin):
                 #
                 # last_saved_image += f", prompt: {preview_text}"
 
-        #         shared.state.textinfo = f"""
-        # <p>
-        # Loss: {losses.mean():.7f}<br/>
-        # Step: {hypernetwork.step}<br/>
-        # Last prompt: {html.escape(text)}<br/>
-        # Last saved embedding: {html.escape(last_saved_file)}<br/>
-        # Last saved image: {html.escape(last_saved_image)}<br/>
-        # </p>
-        # """
-        #
+        # some stats that AUTO1111 used to display
+        # loss = losses.mean()
+        # step = hypernetwork.step
+        # last_prompt = text
+
         checkpoint = self.checkpoints.get_default()
 
         hypernetwork.sd_checkpoint = checkpoint.hash
@@ -525,13 +458,13 @@ class StableDiffusionPlugin(Plugin):
     def train_embedding(self, p: SDJob_train_embedding):
         assert p.name, 'embedding not selected'
 
-        # TODO this is a job
+        # TODO this used to be wrapped with reset_ldm_overrides and set_ldm_overrides, we need to figure this out proper
 
         j = self.new_job("train_embedding", p)
         j.update("Initializing textual inversion training...")
         j.stepmax = p.steps
 
-        path = paths.embeddingdir.embeddings_dir / f'{p.name}.pt'  # TODO need a proper path
+        path = paths.embeddingdir.directory / f'{p.name}.pt'  # TODO need a proper path
 
         # log_directory = os.path.join(p.log_directory, datetime.now().strftime("%Y-%m-%d"), p.embedding_name)
 
@@ -548,7 +481,7 @@ class StableDiffusionPlugin(Plugin):
                                 device=devicelib.device,
                                 template_file=p.template_file)
 
-        embedding = hijack.embedding_db.word_embeddings[p.name]
+        embedding = hijack.embedding_db.embeddings[p.name]
         embedding.vec.requires_grad = True
 
         losses = torch.zeros((32,))
@@ -667,6 +600,147 @@ class StableDiffusionPlugin(Plugin):
 
         return embedding, path
 
+    def preprocess_textinvs(self,
+                            src_dir: Path, dst_dir: Path,
+                            width, height,
+                            flip,
+                            split,
+                            caption,
+                            caption_deepbooru=False):
+        j = self.new_job("preprocess_textinvs", JobParams())
+
+        assert src_dir != dst_dir, 'same directory specified as source and destination'
+
+        dst_dir.mkdir(parents=True, exist_ok=True)
+
+        files = os.listdir(src_dir)
+
+        # shared.state.textinfo = "Preprocessing..."
+        # shared.state.job_count = len(files)
+
+        # if caption:
+        #     shared.interrogator.load()
+        # if caption_deepbooru:
+        #     deepbooru.create_deepbooru_process(opts.interrogate_deepbooru_score_threshold, opts.deepbooru_sort_alpha)
+
+        def save_pic_with_caption(image, index):
+            if caption:
+                caption = "-" + shared.interrogator.generate_caption(image)
+                caption = sanitize_caption(os.path.join(dst, f"{index:05}-{subindex[0]}"), caption, ".png")
+            elif caption_deepbooru:
+                shared.deepbooru_process_return["value"] = -1
+                shared.deepbooru_process_queue.put(image)
+                while shared.deepbooru_process_return["value"] == -1:
+                    time.sleep(0.2)
+                caption = "-" + shared.deepbooru_process_return["value"]
+                caption = sanitize_caption(os.path.join(dst, f"{index:05}-{subindex[0]}"), caption, ".png")
+                shared.deepbooru_process_return["value"] = -1
+            else:
+                caption = filename
+                caption = os.path.splitext(caption)[0]
+                caption = os.path.basename(caption)
+
+            image.save(dst_dir / f"{index:05}-{subindex[0]}{caption}.png")
+
+            subindex[0] += 1
+
+        def save_pic(image, index):
+            save_pic_with_caption(image, index)
+
+            if flip:
+                save_pic_with_caption(ImageOps.mirror(image), index)
+
+        for index, imagefile in enumerate(tqdm.tqdm(files)):  # TODO we need a tqdm for jobs
+            subindex = [0]
+            filename = src_dir / imagefile
+
+            try:
+                img = Image.open(filename).convert("RGB")
+            except Exception:
+                continue
+
+            if j.aborted:
+                break
+
+            ratio = img.height / img.width
+            is_tall = ratio > 1.35
+            is_wide = ratio < 1 / 1.35
+
+            if split and is_tall:
+                img = img.resize((width, height * img.height // img.width))
+
+                top = img.crop((0, 0, width, height))
+                save_pic(top, index)
+
+                bot = img.crop((0, img.height - height, width, img.height))
+                save_pic(bot, index)
+            elif split and is_wide:
+                img = img.resize((width * img.width // img.height, height))
+
+                left = img.crop((0, 0, width, height))
+                save_pic(left, index)
+
+                right = img.crop((img.width - width, 0, img.width, height))
+                save_pic(right, index)
+            else:
+                img = images.resize_image(1, img, width, height)
+                save_pic(img, index)
+
+        # if caption:
+        #     shared.interrogator.send_blip_to_ram()
+        # if caption_deepbooru:
+        #     deepbooru.release_process()
+
+    def sanitize_caption(filename: str, old_caption: str, suffix):
+        # TODO i don't get it, could we not do this with JUST the filename?
+
+        ret = old_caption
+
+        # Sanitize invalid characters
+        # ----------------------------------------
+        osname = platform.system().lower()
+        if osname == "windows":
+            invalid_path_characters = "\\/:*?\"<>|"  # on Windows certain letters may kill the computer
+            max_path_length = 259
+        else:
+            invalid_path_characters = "/"
+            max_path_length = 1023  # = linux is 3.94x better than windows
+        for c in invalid_path_characters:
+            ret = ret.replace(c, "")
+
+        # Sanitize path length
+        # ----------------------------------------
+
+        # If the length already fits, we're done
+        filename_len = len(filename) + len(suffix)
+        if filename_len + len(ret) <= max_path_length:
+            return ret
+
+        # Otherwise we add words until it don't fit
+        caption_tokens = ret.split()
+        ret = ""
+        for token in caption_tokens:
+            last_caption = ret
+            ret += token
+            ret += ' '
+            if len(ret) + filename_len - 1 > max_path_length:
+                break
+
+        printerr(f"\nPath will be too long. Truncated ret: {old_caption}\nto: {last_caption}")
+        return last_caption.strip()
+
+    # endregion
+
+    # region Signals
+    def on_step_start(self, latent):
+        pass
+
+    def on_step_condfn(self):
+        pass
+
+    def on_step_end(self):
+        pass
+
     def on_run_start(self):
         pass
 
@@ -714,6 +788,125 @@ class StableDiffusionPlugin(Plugin):
 
     def on_run_end(self):
         pass
+
+    # endregion
+
+    # region Optimizations
+
+    def reset_ldm_overrides(self):
+        ldm.modules.attention.CrossAttention.forward = ldm_crossattention_forward
+        ldm.modules.diffusionmodules.model.nonlinearity = ldm_nonlinearity
+        ldm.modules.diffusionmodules.model.AttnBlock.forward = ldm_attnblock_forward
+
+    def set_ldm_overrides(self):
+        # noinspection PyUnresolvedReferences
+        from optimizations import \
+            xformers_attention_forward, \
+            xformers_attnblock_forward, \
+            split_cross_attention_forward_basujindal, \
+            split_cross_attention_forward_invokeai, \
+            split_cross_attention_forward_doggett, \
+            cross_attention_attnblock_forward, \
+            invokeAI_mps_available
+
+        ldm.modules.diffusionmodules.model.nonlinearity = torch.nn.functional.silu
+        mode = self.opt.attention
+
+        # Validate
+        # ----------------------------------------
+        if not invokeAI_mps_available and devicelib.device.type == 'mps':
+            print("Cannot use InvokeAI cross attention optimization for MPS without psutil package, which is not installed.")
+            print("Reverting to LDM.")
+            mode = StableDiffusionAttention.LDM
+
+        if mode == StableDiffusionAttention.XFORMERS:
+            if not (torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devicelib.device) <= (8, 6)):
+                print("Cannot use xformers attention with the current CUDA version or GPU. Reverting to LDM")
+                mode = StableDiffusionAttention.LDM
+
+        # Apply the overrides
+        # ----------------------------------------
+        if mode == StableDiffusionAttention.XFORMERS and torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devicelib.device) <= (8, 6):
+            print("Applying xformers cross attention optimization.")
+            ldm.modules.attention.CrossAttention.forward = xformers_attention_forward
+            ldm.modules.diffusionmodules.model.AttnBlock.forward = xformers_attnblock_forward
+        elif mode == StableDiffusionAttention.SPLIT_BASUJINDAL:
+            print("Applying cross attention optimization (Basujindal)")
+            ldm.modules.attention.CrossAttention.forward = split_cross_attention_forward_basujindal(self)
+        elif mode == StableDiffusionAttention.SPLIT_INVOKE or not torch.cuda.is_available():
+            print("Applying cross attention optimization (InvokeAI)")
+            ldm.modules.attention.CrossAttention.forward = split_cross_attention_forward_invokeai(self)
+        elif mode == StableDiffusionAttention.SPLIT_DOGGETT:
+            print("Applying cross attention optimization (Doggettx)")
+            ldm.modules.attention.CrossAttention.forward = split_cross_attention_forward_doggett(self)
+            ldm.modules.diffusionmodules.model.AttnBlock.forward = cross_attention_attnblock_forward
+
+    def setup_for_low_vram(self, model, use_medvram):
+        parents = {}
+
+        def send_me_to_gpu(module, _):
+            """send this module to GPU; send whatever tracked module was previous in GPU to CPU;
+            we add this as forward_pre_hook to a lot of modules and this way all but one of them will
+            be in CPU
+            """
+            module = parents.get(module, module)
+
+            if self.module_in_gpu == module:
+                return
+
+            if self.module_in_gpu is not None:
+                self.module_in_gpu.to(cpu)
+
+            module.to(gpu)
+            self.module_in_gpu = module
+
+        # see below for register_forward_pre_hook;
+        # first_stage_model does not use forward(), it uses encode/decode, so register_forward_pre_hook is
+        # useless here, and we just replace those methods
+        def first_stage_model_encode_wrap(self, encoder, x):
+            send_me_to_gpu(self, None)
+            return encoder(x)
+
+        def first_stage_model_decode_wrap(self, decoder, z):
+            send_me_to_gpu(self, None)
+            return decoder(z)
+
+        # remove three big modules, cond, first_stage, and unet from the model and then
+        # send the model to GPU. Then put modules back. the modules will be in CPU.
+        stored = model.cond_stage_model.transformer, model.first_stage_model, model.model
+        model.cond_stage_model.transformer, model.first_stage_model, model.model = None, None, None
+        model.to(device)
+        model.cond_stage_model.transformer, model.first_stage_model, model.model = stored
+
+        # register hooks for those the first two models
+        model.cond_stage_model.transformer.register_forward_pre_hook(send_me_to_gpu)
+        model.first_stage_model.register_forward_pre_hook(send_me_to_gpu)
+        model.first_stage_model.encode = lambda x, en=model.first_stage_model.encode: first_stage_model_encode_wrap(model.first_stage_model, en, x)
+        model.first_stage_model.decode = lambda z, de=model.first_stage_model.decode: first_stage_model_decode_wrap(model.first_stage_model, de, z)
+        parents[model.cond_stage_model.transformer] = model.cond_stage_model
+
+        if use_medvram:
+            model.model.register_forward_pre_hook(send_me_to_gpu)
+        else:
+            diff_model = model.model.diffusion_model
+
+            # the third remaining model is still too big for 4 GB, so we also do the same for its submodules
+            # so that only one of them is in GPU at a time
+            stored = diff_model.input_blocks, diff_model.middle_block, diff_model.output_blocks, diff_model.time_embed
+            diff_model.input_blocks, diff_model.middle_block, diff_model.output_blocks, diff_model.time_embed = None, None, None, None
+            model.model.to(device)
+            diff_model.input_blocks, diff_model.middle_block, diff_model.output_blocks, diff_model.time_embed = stored
+
+            # install hooks for bits of third model
+            diff_model.time_embed.register_forward_pre_hook(send_me_to_gpu)
+            for block in diff_model.input_blocks:
+                block.register_forward_pre_hook(send_me_to_gpu)
+
+            diff_model.middle_block.register_forward_pre_hook(send_me_to_gpu)
+            for block in diff_model.output_blocks:
+                block.register_forward_pre_hook(send_me_to_gpu)
+
+    # endregion
 
     def on_run_interrupted(self):
         pass
@@ -802,3 +995,26 @@ class StableDiffusionPlugin(Plugin):
 #
 #     if opts.grid_save:
 #         imagelib.save_image(grid, p.outpath_grids, "grid", all_seeds[0], all_prompts[0], opts.grid_format, info=infotext(), short_filename=not opts.grid_extended_filename, p=p, grid=True)
+
+
+# Some old code related to text inversions, idk if we need any of it here
+# import html
+#
+# import gradio as gr
+#
+# from core import plugins
+# import shared
+#
+#
+# def create_embedding(name, initialization_text, nvpt):
+#     filename = plugins.stable_diffusion.textual_inversion.textual_inversion.create_embedding(name, nvpt, init_text=initialization_text)
+#
+#     sd_hijack.model_hijack.embedding_db.load_textual_inversion_embeddings()
+#
+#     return gr.Dropdown.update(choices=sorted(sd_hijack.model_hijack.embedding_db.word_embeddings.keys())), f"Created: {filename}", ""
+#
+#
+# def preprocess(*args):
+#     plugins.stable_diffusion.textual_inversion.preprocess.preprocess(*args)
+#
+#     return "Preprocessing finished.", ""

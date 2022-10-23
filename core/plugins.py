@@ -1,11 +1,12 @@
 import importlib
+import os
 import sys
 import traceback
 from pathlib import Path
 
 # Constants
 from core.jobs import JobParams
-from core.printing import printerr
+from core.printing import printerr, print_bp
 
 INIT_NONE = 0
 INIT_ENABLE = 1
@@ -29,9 +30,9 @@ class Plugin:
         Return a new job
         """
         from core import jobs
-        jobparams.plugin = self
-        return jobs.new_job(self.id, name, jobparams)
-
+        j = jobs.new_job(self.id, name, jobparams)
+        j.plugin_id = self.id
+        return j
     # The title of the script. This is what will be displayed in the dropdown menu.
     def title(self):
         raise NotImplementedError()
@@ -56,6 +57,9 @@ class Plugin:
         pass
 
     def uninstall(self):
+        pass
+
+    def load(self):
         pass
 
     # Allows accessing script's attributes by indexing e.g. script['on_run_start']
@@ -122,15 +126,16 @@ def info(plugid):
 def load(path: Path):
     """
     Manually load a plugin at the given path
+    TODO this function is probably shite
     """
     import inspect
-    from types import ModuleType
 
     # Find classes that extend Plugin in the module
     try:
         sys.path.append(path.as_posix())
         plugin_dirs.append(path)
 
+        # from types import ModuleType
         # # this is missing a bunch of module files for some reason...
         # mod = importlib.import_module(f'modules.{path.stem}')
         #
@@ -142,17 +147,24 @@ def load(path: Path):
         #         plugins.append(plugin)
 
         # TODO probably gonna have to detect by name instead (class & file name must be the same, and end with 'Plugin', e.g. StableDiffusionPlugin)
+
+        if not any(['plugin' in Path(f).name.lower() for f in os.listdir(path)]):
+            return
+
         for f in path.iterdir():
             if f.is_file() and f.suffix == '.py':
                 mod = importlib.import_module(f'modules.{path.stem}.{f.stem}')
                 for name, obj in inspect.getmembers(mod):
-                    if inspect.isclass(obj) and issubclass(obj, Plugin):
+                    if inspect.isclass(obj) and issubclass(obj, Plugin) and not obj == Plugin:
                         # Instantiate the plugin
-                        print(f"Found plugin: {obj}")
+                        # print(f"Loaded plugin: {obj}")
                         plugin = obj(dirpath=path)
                         plugins.append(plugin)
-    except:
-        sys.path.remove(path.as_posix())
+    except Exception as e:
+        printerr(f"Couldn't load plugin {path.name}:")
+        # Print the exception e and its full stacktrace
+        excmsg = ''.join(traceback.format_exception(None, e, e.__traceback__))
+        printerr(excmsg)
         plugin_dirs.remove(path)
 
 
@@ -168,7 +180,9 @@ def load_all(loaddir: Path):
         if p.is_dir() and not p.stem.startswith('__'):
             load(p)
 
-    print(f'Reloaded modules, {len(plugin_dirs)} found')
+    print(f"Loaded {len(plugins)} plugins:")
+    for plugin in plugins:
+        print_bp(f"{plugin.id} ({plugin.dir})")
 
 
 def invoke(plugin, function, default=None, error=False, *args, **kwargs):
@@ -178,12 +192,15 @@ def invoke(plugin, function, default=None, error=False, *args, **kwargs):
     try:
         plug = get(plugin)
         if not plug:
-            if error: printerr(f"Plugin {plugin} not found")
+            if error:
+                printerr(f"Plugin {plugin} not found")
             return default
 
-        attr = getattr(plug, function)
+        attr = getattr(plug, function, None)
         if not attr:
-            if error: printerr(f"Plugin {plugin} has no attribute {function}")
+            if error:
+                printerr(f"Plugin {plugin} has no attribute {function}")
+
             return default
 
         return attr(*args, **kwargs)
@@ -204,6 +221,6 @@ def broadcast(name, *args, **kwargs):
     """
     Dispatch a function call to all plugins.
     """
-    print(f"broadcast({name}, {args}, {kwargs}) to {len(plugins)} plugins")
+    # print(f"broadcast({name}, {args}, {kwargs}) to {len(plugins)} plugins")
     for plugin in plugins:
         invoke(plugin.id, name, None, False, *args, **kwargs)
