@@ -13,7 +13,7 @@ python = sys.executable
 def is_installed(package):
     try:
         spec = importlib.util.find_spec(package)
-    except ModuleNotFoundError:
+    except (ModuleNotFoundError, AttributeError):
         return False
 
     return spec is not None
