@@ -1,8 +1,10 @@
+import os
 import threading
 
 from core.plugins import Plugin
 from modules.stable_diffusion_auto2222 import sd_models, sd_samplers
 from modules.stable_diffusion_auto2222.processing import process_images, SDJob_txt
+from modules.stable_diffusion_auto2222.sd_models import model_path, discover_models
 
 queue_lock = threading.Lock()
 
@@ -16,10 +18,12 @@ def wrap_queued_call(func):
     return f
 
 
-class StableDiffusionPlugin2(Plugin):
+class SDPlugin(Plugin):
     def load(self):
         # modelloader.cleanup_models()
-        sd_models.setup_model()
+        if not os.path.exists(model_path):
+            os.makedirs(model_path)
+        discover_models()
         # codeformer.setup_model(cmd_opts.codeformer_models_path)
         # gfpgan.setup_model(cmd_opts.gfpgan_models_path)
         # shared.face_restorers.append(modules.face_restoration.FaceRestoration())
@@ -37,7 +41,7 @@ class StableDiffusionPlugin2(Plugin):
         sd_samplers.set_samplers()
 
         print('Refreshing Model List')
-        sd_models.list_models()
+        sd_models.discover_models()
 
     def txt2img(self, prompt:str):
         process_images(SDJob_txt(prompt=prompt))

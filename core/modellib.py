@@ -24,19 +24,8 @@ TypedStorage = torch.storage.TypedStorage if hasattr(torch.storage, 'TypedStorag
 
 allowed_zip_names = ["archive/data.pkl", "archive/version"]
 allowed_zip_names_re = re.compile(r"^archive/data/\d+$")
-module_in_gpu = None
 cpu = torch.device("cpu")
 device = gpu = get_optimal_device()
-
-
-def send_everything_to_cpu():
-    global module_in_gpu
-
-    if module_in_gpu is not None:
-        module_in_gpu.to(cpu)
-
-    module_in_gpu = None
-
 
 def friendly_name(file: str):
     if "http" in file:
@@ -47,26 +36,13 @@ def friendly_name(file: str):
     return model_name
 
 
-def model_hash(filename):
-    try:
-        with open(filename, "rb") as file:
-            import hashlib
-            m = hashlib.sha256()
-
-            file.seek(0x100000)
-            m.update(file.read(0x10000))
-            return m.hexdigest()[0:8]
-    except FileNotFoundError:
-        return 'NOFILE'
-
-
-def load_models(model_path: Path, model_url: Path = None, command_path: Path = None, ext_filter=None, download_name=None) -> list:
+def discover_models(model_dir: str, model_url: str = None, command_path: str = None, ext_filter=None, download_name=None) -> list:
     """
     A one-and done loader to try finding the desired models in specified directories.
 
     @param download_name: Specify to download from model_url immediately.
     @param model_url: If no other models are found, this will be downloaded on upscale.
-    @param model_path: The location to store/find models in.
+    @param model_dir: The location to store/find models in.
     @param command_path: A command-line argument to search for models in first.
     @param ext_filter: An optional list of filename extensions to filter by
     @return: A list of paths containing the desired model(s)
@@ -79,7 +55,7 @@ def load_models(model_path: Path, model_url: Path = None, command_path: Path = N
     try:
         places = []
 
-        if command_path is not None and command_path != model_path:
+        if command_path is not None and command_path != model_dir:
             pretrained_path = os.path.join(command_path, 'experiments/pretrained_models')
             if os.path.exists(pretrained_path):
                 print(f"Appending path: {pretrained_path}")
@@ -87,7 +63,7 @@ def load_models(model_path: Path, model_url: Path = None, command_path: Path = N
             elif os.path.exists(command_path):
                 places.append(command_path)
 
-        places.append(model_path)
+        places.append(model_dir)
 
         for place in places:
             if os.path.exists(place):
@@ -104,7 +80,7 @@ def load_models(model_path: Path, model_url: Path = None, command_path: Path = N
 
         if model_url is not None and len(output) == 0:
             if download_name is not None:
-                dl = load_file_from_url(model_url, model_path, True, download_name)
+                dl = load_file_from_url(model_url, model_dir, True, download_name)
                 output.append(dl)
             else:
                 output.append(model_url)
@@ -113,6 +89,7 @@ def load_models(model_path: Path, model_url: Path = None, command_path: Path = N
         pass
 
     return output
+
 
 def load_file_from_url(url, model_dir=None, progress=True, file_name=None):
     """Load file form http url, will download models if necessary.
@@ -144,6 +121,7 @@ def load_file_from_url(url, model_dir=None, progress=True, file_name=None):
         print(f'Downloading: "{url}" to {cached_file}\n')
         download_url_to_file(url, cached_file, hash_prefix=None, progress=progress)
     return cached_file
+
 
 # def load_upscalers():
 #     sd = shared.script_path

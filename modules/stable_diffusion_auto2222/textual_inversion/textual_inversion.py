@@ -10,7 +10,7 @@ import csv
 
 from PIL import Image, PngImagePlugin
 
-from modules.stable_diffusion_auto2222 import shared, devices, sd_hijack, processing, sd_models
+from modules.stable_diffusion_auto2222 import shared, devices, sd_hijack, sd_models
 import modules.stable_diffusion_auto2222.textual_inversion.dataset
 from modules.stable_diffusion_auto2222.textual_inversion.learn_schedule import LearnRateScheduler
 from modules.stable_diffusion_auto2222.textual_inversion.image_embedding import (embedding_to_b64, embedding_from_b64,
@@ -115,7 +115,7 @@ class EmbeddingDatabase:
             else:
                 raise Exception(f"Couldn't identify {filename} as neither textual inversion embedding nor diffuser concept.")
 
-            vec = emb.detach().to(devices.device, dtype=torch.float32)
+            vec = emb.detach().to(shared.device, dtype=torch.float32)
             embedding = Embedding(vec, name)
             embedding.step = data.get('step', None)
             embedding.sd_checkpoint = data.get('hash', None)
@@ -157,8 +157,8 @@ def create_embedding(name, num_vectors_per_token, overwrite_old, init_text='*'):
     embedding_layer = cond_model.wrapped.transformer.text_model.embeddings
 
     ids = cond_model.tokenizer(init_text, max_length=num_vectors_per_token, return_tensors="pt", add_special_tokens=False)["input_ids"]
-    embedded = embedding_layer.token_embedding.wrapped(ids.to(devices.device)).squeeze(0)
-    vec = torch.zeros((num_vectors_per_token, embedded.shape[1]), device=devices.device)
+    embedded = embedding_layer.token_embedding.wrapped(ids.to(shared.device)).squeeze(0)
+    vec = torch.zeros((num_vectors_per_token, embedded.shape[1]), device=shared.device)
 
     for i in range(num_vectors_per_token):
         vec[i] = embedded[i * int(embedded.shape[0]) // num_vectors_per_token]
@@ -232,7 +232,7 @@ def train_embedding(embedding_name, learn_rate, batch_size, data_root, log_direc
 
     shared.state.textinfo = f"Preparing dataset from {html.escape(data_root)}..."
     with torch.autocast("cuda"):
-        ds = modules.textual_inversion.dataset.PersonalizedBase(data_root=data_root, width=training_width, height=training_height, repeats=shared.opts.training_image_repeats_per_epoch, placeholder_token=embedding_name, model=shared.sd_model, device=devices.device, template_file=template_file, batch_size=batch_size)
+        ds = modules.textual_inversion.dataset.PersonalizedBase(data_root=data_root, width=training_width, height=training_height, repeats=shared.opts.training_image_repeats_per_epoch, placeholder_token=embedding_name, model=shared.sd_model, device=shared.device, template_file=template_file, batch_size=batch_size)
 
     hijack = sd_hijack.model_hijack
 
@@ -265,7 +265,7 @@ def train_embedding(embedding_name, learn_rate, batch_size, data_root, log_direc
 
         with torch.autocast("cuda"):
             c = cond_model([entry.cond_text for entry in entries])
-            x = torch.stack([entry.latent for entry in entries]).to(devices.device)
+            x = torch.stack([entry.latent for entry in entries]).to(shared.device)
             loss = shared.sd_model(x, c)[0]
             del x
 
@@ -294,7 +294,8 @@ def train_embedding(embedding_name, learn_rate, batch_size, data_root, log_direc
         if embedding.step > 0 and images_dir is not None and embedding.step % create_image_every == 0:
             last_saved_image = os.path.join(images_dir, f'{embedding_name}-{embedding.step}.png')
 
-            p = processing.StableDiffusionProcessingTxt2Img(
+            from modules.stable_diffusion_auto2222 import processing
+            p = processing.SDJob_txt(
                 sd_model=shared.sd_model,
                 do_not_save_grid=True,
                 do_not_save_samples=True,

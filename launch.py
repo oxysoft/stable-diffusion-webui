@@ -12,7 +12,6 @@ from core.paths import repodir
 from core.installing import is_installed, run, git, git_clone, run_python, run_pip, repo_dir, python
 
 from core.paths import rootdir
-from modules.stable_diffusion_auto1111.SDJob_txt2img import SDJob_txt2img
 
 taming_transformers_commit_hash = os.environ.get('TAMING_TRANSFORMERS_COMMIT_HASH', "24268930bf1dce879235a7fddd0b2355b84d7ea6")
 torch_command = os.environ.get('TORCH_COMMAND', "pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113")

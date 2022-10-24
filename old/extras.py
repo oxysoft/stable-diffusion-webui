@@ -215,7 +215,7 @@ def run_modelmerger(primary_model_name, secondary_model_name, interp_method, int
     print(f"Saving to {output_modelname}...")
     torch.save(primary_model, output_modelname)
 
-    sd_models.list_models()
+    sd_models.discover_models()
 
     print(f"Checkpoint saved.")
-    return ["Checkpoint saved to " + output_modelname] + [gr.Dropdown.update(choices=sd_models.checkpoint_tiles()) for _ in range(3)]
+    return ["Checkpoint saved to " + output_modelname] + [gr.Dropdown.update(choices=sd_models.checkpoint_titles()) for _ in range(3)]

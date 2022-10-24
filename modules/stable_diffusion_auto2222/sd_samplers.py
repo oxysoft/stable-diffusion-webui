@@ -12,7 +12,8 @@ import modules
 import prompt_parser, devices
 
 import shared as shared
-
+# from modules.stable_diffusion_auto2222.processing import store_latent
+from modules.stable_diffusion_auto2222.processing import store_latent
 
 SamplerData = namedtuple('SamplerData', ['name', 'constructor', 'aliases', 'options'])
 
@@ -82,9 +83,8 @@ sampler_extra_params = {
 }
 
 
-def setup_img2img_steps(p, steps=None):
-    from shared import opts
-    if opts.img2img_fix_steps or steps is not None:
+def setup_img2img_steps(p, steps=None, fixed_steps=False):
+    if fixed_steps or steps is not None:
         steps = int((steps or p.steps) / min(p.denoising_strength, 0.999)) if p.denoising_strength > 0 else 0
         t_enc = p.steps - 1
     else:
@@ -111,14 +111,6 @@ def samples_to_image_grid(samples):
     return images.image_grid([single_sample_to_image(sample) for sample in samples])
 
 
-def store_latent(decoded):
-    # from shared import opts
-    # state.current_latent = decoded
-
-    # if opts.show_progress_every_n_steps > 0 and shared.state.sampling_step % opts.show_progress_every_n_steps == 0:
-    #     if not shared.parallel_processing_allowed:
-    #         shared.state.current_image = sample_to_image(decoded)
-    pass
 
 
 class InterruptedException(BaseException):

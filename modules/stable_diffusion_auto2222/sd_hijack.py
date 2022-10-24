@@ -8,7 +8,7 @@ from torch import einsum
 from torch.nn.functional import silu
 
 import prompt_parser, devices, sd_hijack_optimizations, shared
-from modules.stable_diffusion_auto1111.SDAttention import SDAttention
+from modules.stable_diffusion_auto2222.SDAttention import SDAttention
 from shared import opts, device, cmd_opts
 from sd_hijack_optimizations import invokeAI_mps_available
 
@@ -57,13 +57,13 @@ def apply_optimizations():
         mode = SDAttention.LDM
 
     if mode == SDAttention.XFORMERS:
-        if not (torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devices.device) <= (8, 6)):
+        if not (torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(shared.device) <= (8, 6)):
             print("Cannot use xformers attention with the current CUDA version or GPU. Reverting to LDM")
             mode = SDAttention.LDM
 
     # Apply the overrides
     # ----------------------------------------
-    if mode == SDAttention.XFORMERS and torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devices.device) <= (8, 6):
+    if mode == SDAttention.XFORMERS and torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(shared.device) <= (8, 6):
         print("Applying xformers cross attention optimization.")
         ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.xformers_attention_forward
         ldm.modules.diffusionmodules.model.AttnBlock.forward = sd_hijack_optimizations.xformers_attnblock_forward

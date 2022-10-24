@@ -11,7 +11,7 @@ import shutil
 
 if typing.TYPE_CHECKING:
     # Only import this when code is being type-checked, it doesn't have any effect at runtime
-    from .processing import StableDiffusionProcessing
+    from .processing import SDJob
 
 
 class PromptStyle(typing.NamedTuple):
@@ -65,7 +65,7 @@ class StyleDatabase:
     def apply_negative_styles_to_prompt(self, prompt, styles):
         return apply_styles_to_prompt(prompt, [self.styles.get(x, self.no_style).negative_prompt for x in styles])
 
-    def apply_styles(self, p: StableDiffusionProcessing) -> None:
+    def apply_styles(self, p: SDJob) -> None:
         if isinstance(p.prompt, list):
             p.prompt = [self.apply_styles_to_prompt(prompt, p.styles) for prompt in p.prompt]
         else:

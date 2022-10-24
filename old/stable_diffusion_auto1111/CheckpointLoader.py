@@ -1,7 +1,6 @@
 from typing import Any
 
 from core import paths
-from core.modellib import model_hash
 from core.printing import printerr
 from CheckpointInfo import CheckpointInfo
 from modules.stable_diffusion_auto1111.CheckpointInfo import CheckpointInfo

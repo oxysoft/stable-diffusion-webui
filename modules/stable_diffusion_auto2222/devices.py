@@ -4,9 +4,6 @@ import torch
 import errors
 
 # has_mps is only available in nightly pytorch (for now), `getattr` for compatibility
-has_mps = getattr(torch, 'has_mps', False)
-
-cpu = torch.device("cpu")
 
 def extract_device_id(args, name):
     for x in range(len(args)):
@@ -41,13 +38,6 @@ def enable_tf32():
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 
-
-errors.run(enable_tf32, "Enabling TF32")
-
-device = device_interrogate = device_gfpgan = device_bsrgan = device_esrgan = device_scunet = device_codeformer = None
-dtype = torch.float16
-dtype_vae = torch.float16
-
 def randn(seed, shape):
     # Pytorch currently doesn't handle setting randomness correctly when the metal backend is used.
     if device.type == 'mps':
@@ -80,3 +70,9 @@ def autocast(disable=False):
         return contextlib.nullcontext()
 
     return torch.autocast("cuda")
+
+has_mps = getattr(torch, 'has_mps', False)
+cpu = torch.device("cpu")
+device = None
+dtype = None
+dtype_vae = None

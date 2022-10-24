@@ -66,7 +66,7 @@ class HypernetworkModule(torch.nn.Module):
                     layer.weight.data.normal_(mean=0.0, std=0.01)
                     layer.bias.data.zero_()
 
-        self.to(devices.device)
+        self.to(shared.device)
 
     def fix_old_state_dict(self, state_dict):
         changes = {
@@ -329,7 +329,7 @@ def train_hypernetwork(hypernetwork_name, learn_rate, batch_size, data_root, log
 
     shared.state.textinfo = f"Preparing dataset from {html.escape(data_root)}..."
     with torch.autocast("cuda"):
-        ds = modules.textual_inversion.dataset.PersonalizedBase(data_root=data_root, width=training_width, height=training_height, repeats=shared.opts.training_image_repeats_per_epoch, placeholder_token=hypernetwork_name, model=shared.sd_model, device=devices.device, template_file=template_file, include_cond=True, batch_size=batch_size)
+        ds = modules.textual_inversion.dataset.PersonalizedBase(data_root=data_root, width=training_width, height=training_height, repeats=shared.opts.training_image_repeats_per_epoch, placeholder_token=hypernetwork_name, model=shared.sd_model, device=shared.device, template_file=template_file, include_cond=True, batch_size=batch_size)
     if unload:
         shared.sd_model.cond_stage_model.to(devices.cpu)
         shared.sd_model.first_stage_model.to(devices.cpu)
@@ -373,9 +373,9 @@ def train_hypernetwork(hypernetwork_name, learn_rate, batch_size, data_root, log
             break
 
         with torch.autocast("cuda"):
-            c = stack_conds([entry.cond for entry in entries]).to(devices.device)
-            # c = torch.vstack([entry.cond for entry in entries]).to(devices.device)
-            x = torch.stack([entry.latent for entry in entries]).to(devices.device)
+            c = stack_conds([entry.cond for entry in entries]).to(shared.device)
+            # c = torch.vstack([entry.cond for entry in entries]).to(shared.device)
+            x = torch.stack([entry.latent for entry in entries]).to(shared.device)
             loss = shared.sd_model(x, c)[0]
             del x
             del c
@@ -417,11 +417,11 @@ def train_hypernetwork(hypernetwork_name, learn_rate, batch_size, data_root, log
             last_saved_image = os.path.join(images_dir, forced_filename)
 
             optimizer.zero_grad()
-            shared.sd_model.cond_stage_model.to(devices.device)
-            shared.sd_model.first_stage_model.to(devices.device)
+            shared.sd_model.cond_stage_model.to(shared.device)
+            shared.sd_model.first_stage_model.to(shared.device)
 
 
-            p = modules.stable_diffusion_auto2222.processing.StableDiffusionProcessingTxt2Img(
+            p = modules.stable_diffusion_auto2222.processing.SDJob_txt(
                 sd_model=shared.sd_model,
                 do_not_save_grid=True,
                 do_not_save_samples=True,

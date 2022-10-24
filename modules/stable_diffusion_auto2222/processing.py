@@ -16,23 +16,13 @@ import prompt_parser
 import sd_samplers
 import shared as shared
 from core.jobs import JobParams
-from modules.stable_diffusion_auto1111.SDJob_img2img import SDJob_img2img
-from modules.stable_diffusion_auto1111.SDJob_txt2img import SDJob_txt2img
 from shared import opts
 
 # some of those options should not be changed at all because they would break the model, so I removed them from options.
 opt_C = 4
 opt_f = 8
 
-
-def get_correct_sampler(p):
-    if isinstance(p, SDJob_txt2img):
-        return sd_samplers.samplers
-    elif isinstance(p, SDJob_img2img):
-        return sd_samplers.samplers_for_img2img
-
-
-class StableDiffusionProcessing(JobParams):
+class SDJob(JobParams):
     def __init__(self,
                  prompt: str = "",
                  sampler: int = 'euler-a',
@@ -56,7 +46,7 @@ class StableDiffusionProcessing(JobParams):
                  s_tmax: float = None,
                  s_tmin: float = 0.0,
                  s_noise: float = 1.0):
-        super(StableDiffusionProcessing, self).__init__()
+        super(SDJob, self).__init__()
         self.prompt: str = prompt
         self.promptneg: str = promptneg or ""
         self.seed: int = seed
@@ -99,7 +89,7 @@ class StableDiffusionProcessing(JobParams):
         raise NotImplementedError()
 
 
-class StableDiffusionProcessingTxt2Img(StableDiffusionProcessing):
+class SDJob_txt(SDJob):
     def __init__(self,
                  enable_hr: bool = False,
                  denoising_strength: float = 0.75,
@@ -216,7 +206,7 @@ class StableDiffusionProcessingTxt2Img(StableDiffusionProcessing):
         return samples
 
 
-class StableDiffusionProcessingImg2Img(StableDiffusionProcessing):
+class SDJob_img(SDJob):
     def __init__(self,
                  init_images: list = None,
                  resize_mode: int = 0,
@@ -382,17 +372,11 @@ class StableDiffusionProcessingImg2Img(StableDiffusionProcessing):
         return samples
 
 
-def process_images(p: StableDiffusionProcessing):
-    """this is the main loop that both txt2img and img2img use; it calls func_init once inside all the scopes and func_sample once per batch"""
-
+def process_images(p: SDJob):
     if type(p.prompt) == list:
         assert (len(p.prompt) > 0)
     else:
         assert p.prompt is not None
-
-    # with open(os.path.join(shared.script_path, "params.txt"), "w", encoding="utf8") as file:
-    #     processed = Processed(p, [], p.seed, "")
-    #     file.write(processed.infotext(p, 0))
 
     devices.torch_gc()
 
@@ -402,7 +386,6 @@ def process_images(p: StableDiffusionProcessing):
     modules.stable_diffusion_auto2222.sd_hijack.model_hijack.apply_circular(p.tiling)
     modules.stable_diffusion_auto2222.sd_hijack.model_hijack.clear_comments()
 
-    # comments = {}
     # shared.prompt_styles.apply_styles(p)
 
     if type(p.prompt) == list:
@@ -422,9 +405,6 @@ def process_images(p: StableDiffusionProcessing):
 
     # if os.path.exists(shared.embeddings_dir) and not p.do_not_reload_embeddings:
     #     modules.stable_diffusion_auto2222.sd_hijack.model_hijack.embedding_db.load_textual_inversion_embeddings()
-
-    # if p.scripts is not None:
-    #     p.scripts.run_alwayson_scripts(p)
 
     output_images = []
 
@@ -451,7 +431,7 @@ def process_images(p: StableDiffusionProcessing):
         with devices.autocast():
             samples_ddim = p.sample(conditioning=c, unconditional_conditioning=uc, seeds=seeds, subseeds=subseeds, subseed_strength=p.subseed_strength)
 
-        samples_ddim = samples_ddim.to(devices.dtype_vae)
+        samples_ddim = samples_ddim.to(shared.dtype_vae)
         x_samples_ddim = decode_first_stage(shared.sd_model, samples_ddim)
         x_samples_ddim = torch.clamp((x_samples_ddim + 1.0) / 2.0, min=0.0, max=1.0)
 
@@ -470,36 +450,10 @@ def process_images(p: StableDiffusionProcessing):
             x_sample = 255. * np.moveaxis(x_sample.cpu().numpy(), 0, 2)
             x_sample = x_sample.astype(np.uint8)
 
-            # if p.restore_faces:
-            #     if opts.save and not p.do_not_save_samples and opts.save_images_before_face_restoration:
-            #         images.save_image(Image.fromarray(x_sample), p.outpath_samples, "", seeds[i], prompts[i], opts.samples_format, metadata=infotext(n, i), p=p, suffix="-before-face-restoration")
-            #
-            #     devices.torch_gc()
-            #
-            #     # x_sample = modules.face_restoration.restore_faces(x_sample)
-            #     devices.torch_gc()
-
             image = Image.fromarray(x_sample)
-
-            # if p.overlay_images is not None and i < len(p.overlay_images):
-            #     overlay = p.overlay_images[i]
-            #
-            #     if p.paste_to is not None:
-            #         x, y, w, h = p.paste_to
-            #         base_image = Image.new('RGBA', (overlay.width, overlay.height))
-            #         image = images.resize_image(1, image, w, h)
-            #         base_image.paste(image, (x, y))
-            #         image = base_image
-            #
-            #     image = image.convert('RGBA')
-            #     image.alpha_composite(overlay)
-            #     image = image.convert('RGB')
 
             # if opts.samples_save and not p.do_not_save_samples:
             #     images.save_image(image, p.outpath_samples, "", seeds[i], prompts[i], opts.samples_format, metadata=infotext(n, i), p=p)
-
-            # if opts.enable_pnginfo:
-            #     image.info["parameters"] = text
 
             output_images.append(image)
 
@@ -507,35 +461,16 @@ def process_images(p: StableDiffusionProcessing):
 
         devices.torch_gc()
 
-        # state.nextjob()
-
-        # index_of_first_image = 0
-        # unwanted_grid_because_of_img_count = len(output_images) < 2 and opts.grid_only_if_multiple
-        # if (opts.return_grid or opts.grid_save) and not p.do_not_save_grid and not unwanted_grid_because_of_img_count:
-        #     grid = images.image_grid(output_images, p.batch_size)
-        #
-        #     if opts.return_grid:
-        #         text = infotext()
-        #         infotexts.insert(0, text)
-        #         if opts.enable_pnginfo:
-        #             grid.info["parameters"] = text
-        #         output_images.insert(0, grid)
-        #         index_of_first_image = 1
-        #
-        #     if opts.grid_save:
-        #         images.save_image(grid, p.outpath_grids, "grid", p.all_seeds[0], p.all_prompts[0], opts.grid_format, metadata=infotext(), short_filename=not opts.grid_extended_filename, p=p, grid=True)
-
     devices.torch_gc()
-    # return Processed(p,
-    #                  output_images,
-    #                  p.all_seeds[0],
-    #                  "",
-    #                  subseed=p.all_subseeds[0],
-    #                  all_prompts=p.all_prompts,
-    #                  all_seeds=p.all_seeds,
-    #                  all_subseeds=p.all_subseeds,
-    #                  index_of_first_image=0,
-    #                  infotexts="")
+
+
+def store_latent(decoded):
+    # state.current_latent = decoded
+
+    # if opts.show_progress_every_n_steps > 0 and shared.state.sampling_step % opts.show_progress_every_n_steps == 0:
+    #     if not shared.parallel_processing_allowed:
+    #         shared.state.current_image = sample_to_image(decoded)
+    pass
 
 
 def slerp(val, low, high):
@@ -616,7 +551,7 @@ def create_random_tensors(shape, seeds, subseeds=None, subseed_strength=0.0, see
 
 
 def decode_first_stage(model, x):
-    with devices.autocast(disable=x.dtype == devices.dtype_vae):
+    with devices.autocast(disable=x.dtype == shared.dtype_vae):
         x = model.decode_first_stage(x)
 
     return x
