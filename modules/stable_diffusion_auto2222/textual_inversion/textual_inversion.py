@@ -163,7 +163,7 @@ def create_embedding(name, num_vectors_per_token, overwrite_old, init_text='*'):
     for i in range(num_vectors_per_token):
         vec[i] = embedded[i * int(embedded.shape[0]) // num_vectors_per_token]
 
-    fn = os.path.join(shared.cmd_opts.embeddings_dir, f"{name}.pt")
+    fn = os.path.join(shared.embeddings_dir, f"{name}.pt")
     if not overwrite_old:
         assert not os.path.exists(fn), f"file {fn} already exists"
 
@@ -206,7 +206,7 @@ def train_embedding(embedding_name, learn_rate, batch_size, data_root, log_direc
     shared.state.textinfo = "Initializing textual inversion training..."
     shared.state.job_count = steps
 
-    filename = os.path.join(shared.cmd_opts.embeddings_dir, f'{embedding_name}.pt')
+    filename = os.path.join(shared.embeddings_dir, f'{embedding_name}.pt')
 
     log_directory = os.path.join(log_directory, datetime.datetime.now().strftime("%Y-%m-%d"), embedding_name)
 

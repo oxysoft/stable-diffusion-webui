@@ -8,6 +8,7 @@ from torch import einsum
 from torch.nn.functional import silu
 
 import prompt_parser, devices, sd_hijack_optimizations, shared
+from modules.stable_diffusion_auto1111.SDAttention import SDAttention
 from shared import opts, device, cmd_opts
 from sd_hijack_optimizations import invokeAI_mps_available
 
@@ -19,28 +20,62 @@ diffusionmodules_model_nonlinearity = ldm.modules.diffusionmodules.model.nonline
 diffusionmodules_model_AttnBlock_forward = ldm.modules.diffusionmodules.model.AttnBlock.forward
 
 
+# def apply_optimizations():
+#     undo_optimizations()
+#
+#     ldm.modules.diffusionmodules.model.nonlinearity = silu
+#
+#     if shared.force_enable_xformers or (shared.xformers and shared.xformers_available and torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(shared.device) <= (9, 0)):
+#         print("Applying xformers cross attention optimization.")
+#         ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.xformers_attention_forward
+#         ldm.modules.diffusionmodules.model.AttnBlock.forward = sd_hijack_optimizations.xformers_attnblock_forward
+#     elif shared.opt_split_attention_v1:
+#         print("Applying v1 cross attention optimization.")
+#         ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.split_cross_attention_forward_v1
+#     elif not shared.disable_opt_split_attention and (shared.opt_split_attention_invokeai or not torch.cuda.is_available()):
+#         if not invokeAI_mps_available and shared.device.type == 'mps':
+#             print("The InvokeAI cross attention optimization for MPS requires the psutil package which is not installed.")
+#             print("Applying v1 cross attention optimization.")
+#             ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.split_cross_attention_forward_v1
+#         else:
+#             print("Applying cross attention optimization (InvokeAI).")
+#             ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.split_cross_attention_forward_invokeAI
+#     elif not shared.disable_opt_split_attention and (shared.opt_split_attention or torch.cuda.is_available()):
+#         print("Applying cross attention optimization (Doggettx).")
+#         ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.split_cross_attention_forward()
+#         ldm.modules.diffusionmodules.model.AttnBlock.forward = sd_hijack_optimizations.cross_attention_attnblock_forward
+
 def apply_optimizations():
-    undo_optimizations()
+    ldm.modules.diffusionmodules.model.nonlinearity = torch.nn.functional.silu
+    mode = shared.attention
 
-    ldm.modules.diffusionmodules.model.nonlinearity = silu
+    # Validate
+    # ----------------------------------------
+    if not invokeAI_mps_available and shared.device.type == 'mps':
+        print("Cannot use InvokeAI cross attention optimization for MPS without psutil package, which is not installed.")
+        print("Reverting to LDM.")
+        mode = SDAttention.LDM
 
-    if cmd_opts.force_enable_xformers or (cmd_opts.xformers and shared.xformers_available and torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(shared.device) <= (9, 0)):
+    if mode == SDAttention.XFORMERS:
+        if not (torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devices.device) <= (8, 6)):
+            print("Cannot use xformers attention with the current CUDA version or GPU. Reverting to LDM")
+            mode = SDAttention.LDM
+
+    # Apply the overrides
+    # ----------------------------------------
+    if mode == SDAttention.XFORMERS and torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devices.device) <= (8, 6):
         print("Applying xformers cross attention optimization.")
         ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.xformers_attention_forward
         ldm.modules.diffusionmodules.model.AttnBlock.forward = sd_hijack_optimizations.xformers_attnblock_forward
-    elif cmd_opts.opt_split_attention_v1:
-        print("Applying v1 cross attention optimization.")
+    elif mode == SDAttention.SPLIT_BASUJINDAL:
+        print("Applying cross attention optimization (Basujindal)")
         ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.split_cross_attention_forward_v1
-    elif not cmd_opts.disable_opt_split_attention and (cmd_opts.opt_split_attention_invokeai or not torch.cuda.is_available()):
-        if not invokeAI_mps_available and shared.device.type == 'mps':
-            print("The InvokeAI cross attention optimization for MPS requires the psutil package which is not installed.")
-            print("Applying v1 cross attention optimization.")
-            ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.split_cross_attention_forward_v1
-        else:
-            print("Applying cross attention optimization (InvokeAI).")
-            ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.split_cross_attention_forward_invokeAI
-    elif not cmd_opts.disable_opt_split_attention and (cmd_opts.opt_split_attention or torch.cuda.is_available()):
-        print("Applying cross attention optimization (Doggettx).")
+    elif mode == SDAttention.SPLIT_INVOKE or not torch.cuda.is_available():
+        print("Applying cross attention optimization (InvokeAI)")
+        print("The InvokeAI cross attention optimization for MPS requires the psutil package which is not installed.")
+        print("Applying v1 cross attention optimization.")
+    elif mode == SDAttention.SPLIT_DOGGETT:
+        print("Applying cross attention optimization (Doggettx)")
         ldm.modules.attention.CrossAttention.forward = sd_hijack_optimizations.split_cross_attention_forward()
         ldm.modules.diffusionmodules.model.AttnBlock.forward = sd_hijack_optimizations.cross_attention_attnblock_forward
 
@@ -65,7 +100,7 @@ class StableDiffusionModelHijack:
     clip = None
 
     import textual_inversion.textual_inversion
-    embedding_db = textual_inversion.textual_inversion.EmbeddingDatabase(cmd_opts.embeddings_dir)
+    embedding_db = textual_inversion.textual_inversion.EmbeddingDatabase(shared.embeddings_dir)
 
     def hijack(self, m):
         model_embeddings = m.cond_stage_model.transformer.text_model.embeddings

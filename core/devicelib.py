@@ -90,5 +90,3 @@ dtype_vae = torch.float16
 # device = device
 
 device = get_optimal_device()
-
-print(device)

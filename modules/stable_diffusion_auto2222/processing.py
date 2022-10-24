@@ -313,7 +313,7 @@ def process_images(p: StableDiffusionProcessing) -> Processed:
     else:
         p.all_subseeds = [int(subseed) + x for x in range(len(p.all_prompts))]
 
-    if os.path.exists(cmd_opts.embeddings_dir) and not p.do_not_reload_embeddings:
+    if os.path.exists(shared.embeddings_dir) and not p.do_not_reload_embeddings:
         modules.stable_diffusion_auto2222.sd_hijack.model_hijack.embedding_db.load_textual_inversion_embeddings()
 
     # if p.scripts is not None:
@@ -361,7 +361,7 @@ def process_images(p: StableDiffusionProcessing) -> Processed:
 
             del samples_ddim
 
-            if shared.cmd_opts.lowvram or shared.cmd_opts.medvram:
+            if shared.lowvram or shared.medvram:
                 lowvram.send_everything_to_cpu()
 
             devices.torch_gc()

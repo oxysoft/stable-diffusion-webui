@@ -13,7 +13,7 @@ import shared
 from hypernetworks import hypernetwork
 
 
-if shared.cmd_opts.xformers or shared.cmd_opts.force_enable_xformers:
+if shared.xformers or shared.force_enable_xformers:
     try:
         import xformers.ops
         shared.xformers_available = True

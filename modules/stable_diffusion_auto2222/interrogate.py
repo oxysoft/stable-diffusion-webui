@@ -11,7 +11,7 @@ from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode
 
 import shared
-import devices, paths, lowvram
+import devices, lowvram
 
 blip_image_eval_size = 384
 blip_model_url = 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base_caption_capfilt_large.pth'
@@ -68,14 +68,14 @@ class InterrogateModels:
     def load(self):
         if self.blip_model is None:
             self.blip_model = self.load_blip_model()
-            if not shared.cmd_opts.no_half and not self.running_on_cpu:
+            if not shared.no_half and not self.running_on_cpu:
                 self.blip_model = self.blip_model.half()
 
         self.blip_model = self.blip_model.to(devices.device_interrogate)
 
         if self.clip_model is None:
             self.clip_model, self.clip_preprocess = self.load_clip_model()
-            if not shared.cmd_opts.no_half and not self.running_on_cpu:
+            if not shared.no_half and not self.running_on_cpu:
                 self.clip_model = self.clip_model.half()
 
         self.clip_model = self.clip_model.to(devices.device_interrogate)
@@ -134,7 +134,7 @@ class InterrogateModels:
 
         try:
 
-            if shared.cmd_opts.lowvram or shared.cmd_opts.medvram:
+            if shared.lowvram or shared.medvram:
                 lowvram.send_everything_to_cpu()
                 devices.torch_gc()
 
@@ -148,7 +148,7 @@ class InterrogateModels:
 
             clip_image = self.clip_preprocess(pil_image).unsqueeze(0).type(self.dtype).to(devices.device_interrogate)
 
-            precision_scope = torch.autocast if shared.cmd_opts.precision == "autocast" else contextlib.nullcontext
+            precision_scope = torch.autocast if shared.precision == "autocast" else contextlib.nullcontext
             with torch.no_grad(), precision_scope("cuda"):
                 image_features = self.clip_model.encode_image(clip_image).type(self.dtype)
 

@@ -1,14 +1,9 @@
 # some of those options should not be changed at all because they would break the model, so I removed them from options.
-import math
 from collections import namedtuple
-from ctypes import Union
 from datetime import datetime
-from enum import Enum
 import platform
 
 import tqdm
-from einops import rearrange
-from numpy import einsum
 
 from core.jobs import Job, JobParams
 from SDJob import SDJob
@@ -18,6 +13,7 @@ from SDJob_train_embedding import SDJob_train_embedding
 from SDCheckpointLoader import SDCheckpointLoader
 from core.printing import printerr
 from modules.stable_diffusion_auto1111.HypernetworkLoader import HypernetworkLoader
+from modules.stable_diffusion_auto1111.SDAttention import SDAttention
 from modules.stable_diffusion_auto1111.SDSampler import SDSampler
 from modules.stable_diffusion_auto1111.SDEmbeddingLoader import SDEmbeddingLoader
 from Hypernetwork import Hypernetwork
@@ -29,7 +25,7 @@ from SDUtil import *
 from core.modellib import *
 from core.installing import git_clone, move_files
 from core.options import *
-from core.paths import repodir, modeldir
+from core.paths import repodir
 from core.plugins import Plugin
 
 from core import promptlib, devicelib, paths
@@ -40,7 +36,6 @@ import SDConstants
 import ldm
 import ldm.modules.attention
 import ldm.modules.diffusionmodules.model
-from ldm.util import default
 
 ldm_crossattention_forward = ldm.modules.attention.CrossAttention.forward
 ldm_nonlinearity = ldm.modules.diffusionmodules.model.nonlinearity
@@ -50,13 +45,6 @@ ldm_attnblock_forward = ldm.modules.diffusionmodules.model.AttnBlock.forward
 # def plaintext_to_html(text):
 #     text = "<p>" + "<br>\n".join([f"{html.escape(x)}" for x in text.split('\n')]) + "</p>"
 #     return text
-
-class StableDiffusionAttention(Enum):
-    LDM = 0
-    SPLIT_BASUJINDAL = 1
-    SPLIT_INVOKE = 2
-    SPLIT_DOGGETT = 3
-    XFORMERS = 4
 
 
 class StableDiffusionPlugin(Plugin):
@@ -80,7 +68,7 @@ class StableDiffusionPlugin(Plugin):
             self.no_half = True
             self.no_half_vae = False
             self.vae_override = ""
-            self.attention = StableDiffusionAttention.SPLIT_DOGGETT
+            self.attention = SDAttention.SPLIT_DOGGETT
             self.k_quantize = True
             self.always_batch_cond_uncond = True
 
@@ -121,8 +109,8 @@ class StableDiffusionPlugin(Plugin):
         assert repo.is_dir() is not None, f"Couldn't find Stable Diffusion in {repo}"
 
         # TODO install xformers if enabled
-        if self.opt.attention == StableDiffusionAttention.XFORMERS:
-            import xformers.ops
+        if self.opt.attention == SDAttention.XFORMERS:
+            pass
 
         # TODO install mps if invoke attention
 
@@ -817,26 +805,26 @@ class StableDiffusionPlugin(Plugin):
         if not invokeAI_mps_available and devicelib.device.type == 'mps':
             print("Cannot use InvokeAI cross attention optimization for MPS without psutil package, which is not installed.")
             print("Reverting to LDM.")
-            mode = StableDiffusionAttention.LDM
+            mode = SDAttention.LDM
 
-        if mode == StableDiffusionAttention.XFORMERS:
+        if mode == SDAttention.XFORMERS:
             if not (torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devicelib.device) <= (8, 6)):
                 print("Cannot use xformers attention with the current CUDA version or GPU. Reverting to LDM")
-                mode = StableDiffusionAttention.LDM
+                mode = SDAttention.LDM
 
         # Apply the overrides
         # ----------------------------------------
-        if mode == StableDiffusionAttention.XFORMERS and torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devicelib.device) <= (8, 6):
+        if mode == SDAttention.XFORMERS and torch.version.cuda and (6, 0) <= torch.cuda.get_device_capability(devicelib.device) <= (8, 6):
             print("Applying xformers cross attention optimization.")
             ldm.modules.attention.CrossAttention.forward = xformers_attention_forward
             ldm.modules.diffusionmodules.model.AttnBlock.forward = xformers_attnblock_forward
-        elif mode == StableDiffusionAttention.SPLIT_BASUJINDAL:
+        elif mode == SDAttention.SPLIT_BASUJINDAL:
             print("Applying cross attention optimization (Basujindal)")
             ldm.modules.attention.CrossAttention.forward = split_cross_attention_forward_basujindal(self)
-        elif mode == StableDiffusionAttention.SPLIT_INVOKE or not torch.cuda.is_available():
+        elif mode == SDAttention.SPLIT_INVOKE or not torch.cuda.is_available():
             print("Applying cross attention optimization (InvokeAI)")
             ldm.modules.attention.CrossAttention.forward = split_cross_attention_forward_invokeai(self)
-        elif mode == StableDiffusionAttention.SPLIT_DOGGETT:
+        elif mode == SDAttention.SPLIT_DOGGETT:
             print("Applying cross attention optimization (Doggettx)")
             ldm.modules.attention.CrossAttention.forward = split_cross_attention_forward_doggett(self)
             ldm.modules.diffusionmodules.model.AttnBlock.forward = cross_attention_attnblock_forward

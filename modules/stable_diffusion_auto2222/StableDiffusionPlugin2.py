@@ -22,7 +22,7 @@ def wrap_queued_call(func):
 
 class StableDiffusionPlugin2(Plugin):
     def load(self):
-        modelloader.cleanup_models()
+        # modelloader.cleanup_models()
         sd_models.setup_model()
         # codeformer.setup_model(cmd_opts.codeformer_models_path)
         # gfpgan.setup_model(cmd_opts.gfpgan_models_path)

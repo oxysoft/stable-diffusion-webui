@@ -7,16 +7,15 @@ from urllib.parse import urlparse
 # from basicsr.utils.download_util import load_file_from_url
 import shared
 from core.modellib import load_file_from_url
-from paths import script_path, models_path
 
 
-def load_models(model_path: str, model_url: str = None, command_path: str = None, ext_filter=None, download_name=None) -> list:
+def load_models(model_dir: str, model_url: str = None, command_path: str = None, ext_filter=None, download_name=None) -> list:
     """
     A one-and done loader to try finding the desired models in specified directories.
 
     @param download_name: Specify to download from model_url immediately.
     @param model_url: If no other models are found, this will be downloaded on upscale.
-    @param model_path: The location to store/find models in.
+    @param model_dir: The location to store/find models in.
     @param command_path: A command-line argument to search for models in first.
     @param ext_filter: An optional list of filename extensions to filter by
     @return: A list of paths containing the desired model(s)
@@ -29,7 +28,7 @@ def load_models(model_path: str, model_url: str = None, command_path: str = None
     try:
         places = []
 
-        if command_path is not None and command_path != model_path:
+        if command_path is not None and command_path != model_dir:
             pretrained_path = os.path.join(command_path, 'experiments/pretrained_models')
             if os.path.exists(pretrained_path):
                 print(f"Appending path: {pretrained_path}")
@@ -37,7 +36,7 @@ def load_models(model_path: str, model_url: str = None, command_path: str = None
             elif os.path.exists(command_path):
                 places.append(command_path)
 
-        places.append(model_path)
+        places.append(model_dir)
 
         for place in places:
             if os.path.exists(place):
@@ -54,7 +53,7 @@ def load_models(model_path: str, model_url: str = None, command_path: str = None
 
         if model_url is not None and len(output) == 0:
             if download_name is not None:
-                dl = load_file_from_url(model_url, model_path, True, download_name)
+                dl = load_file_from_url(model_url, model_dir, True, download_name)
                 output.append(dl)
             else:
                 output.append(model_url)
@@ -74,26 +73,26 @@ def friendly_name(file: str):
     return model_name
 
 
-def cleanup_models():
-    # This code could probably be more efficient if we used a tuple list or something to store the src/destinations
-    # and then enumerate that, but this works for now. In the future, it'd be nice to just have every "model" scaler
-    # somehow auto-register and just do these things...
-    root_path = script_path
-    src_path = models_path
-    dest_path = os.path.join(models_path, "Stable-diffusion")
-    move_files(src_path, dest_path, ".ckpt")
-    src_path = os.path.join(root_path, "ESRGAN")
-    dest_path = os.path.join(models_path, "ESRGAN")
-    move_files(src_path, dest_path)
-    src_path = os.path.join(root_path, "gfpgan")
-    dest_path = os.path.join(models_path, "GFPGAN")
-    move_files(src_path, dest_path)
-    src_path = os.path.join(root_path, "SwinIR")
-    dest_path = os.path.join(models_path, "SwinIR")
-    move_files(src_path, dest_path)
-    src_path = os.path.join(root_path, "repositories/latent-diffusion/experiments/pretrained_models/")
-    dest_path = os.path.join(models_path, "LDSR")
-    move_files(src_path, dest_path)
+# def cleanup_models():
+#     # This code could probably be more efficient if we used a tuple list or something to store the src/destinations
+#     # and then enumerate that, but this works for now. In the future, it'd be nice to just have every "model" scaler
+#     # somehow auto-register and just do these things...
+#     root_path = script_path
+#     src_path = models_path
+#     dest_path = os.path.join(models_path, "Stable-diffusion")
+#     move_files(src_path, dest_path, ".ckpt")
+#     src_path = os.path.join(root_path, "ESRGAN")
+#     dest_path = os.path.join(models_path, "ESRGAN")
+#     move_files(src_path, dest_path)
+#     src_path = os.path.join(root_path, "gfpgan")
+#     dest_path = os.path.join(models_path, "GFPGAN")
+#     move_files(src_path, dest_path)
+#     src_path = os.path.join(root_path, "SwinIR")
+#     dest_path = os.path.join(models_path, "SwinIR")
+#     move_files(src_path, dest_path)
+#     src_path = os.path.join(root_path, "repositories/latent-diffusion/experiments/pretrained_models/")
+#     dest_path = os.path.join(models_path, "LDSR")
+#     move_files(src_path, dest_path)
 
 
 def move_files(src_path: str, dest_path: str, ext_filter: str = None):

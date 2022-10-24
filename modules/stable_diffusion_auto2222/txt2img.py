@@ -1,9 +1,5 @@
-import scripts
-from processing import StableDiffusionProcessing, Processed, StableDiffusionProcessingTxt2Img, \
-    StableDiffusionProcessingImg2Img, process_images
-from shared import opts, cmd_opts
 import shared as shared
-import processing as processing
+from processing import StableDiffusionProcessingTxt2Img, process_images
 
 
 def txt2img(prompt: str,
@@ -12,7 +8,6 @@ def txt2img(prompt: str,
             prompt_style2: str = "",
             steps: int = 22,
             sampler_index: int = 0,
-            restore_faces: bool = False,
             tiling: bool = False,
             n_iter: int = 1,
             batch_size: int = 1,
@@ -50,7 +45,6 @@ def txt2img(prompt: str,
             cfg=cfg_scale,
             width=width,
             height=height,
-            # restore_faces=restore_faces,
             tiling=tiling,
             enable_hr=enable_hr,
             denoising_strength=denoising_strength if enable_hr else None,
@@ -60,9 +54,4 @@ def txt2img(prompt: str,
 
     p.script_args = args
 
-    # if cmd_opts.enable_console_prompts:
-    #     print(f"\ntxt2img: {prompt}", file=shared.progress_print_out)
-
-    processed = process_images(p)
-
-    return processed.images
+    return process_images(p).images

@@ -1,34 +1,39 @@
 import argparse
-import datetime
 import json
 import os
 import sys
-from collections import OrderedDict
 
 import gradio as gr
-import tqdm
 
 import devices as devices
-from paths import models_path, script_path, sd_path
+# from paths import models_path, script_path, sd_path
+from core import paths
+from modules.stable_diffusion_auto1111.SDAttention import SDAttention
 
-sd_model_file = os.path.join(script_path, 'model.ckpt')
-default_sd_model_file = sd_model_file
+config = paths.repodir / 'stable_diffusion' / 'configs/stable-diffusion/v1-inference.yaml'
+ckpt = "models/Stable-diffusion/sd-v1-4.ckpt"
+ckpt_dir = paths.modeldir / 'Stable-diffusion'
+embeddings_dir =  paths.rootdir / 'embeddings'
+hypernetwork_dir = ckpt_dir / 'hypernetworks'
+vae_path = None
+
+ckpt_dir = ckpt_dir.as_posix()
+
+attention = SDAttention.SPLIT_DOGGETT
+lowvram = False
+medvram = True
+lowram = False
+precision = "autocast"
+no_half = True
+opt_channelslast = False
+always_batch_cond_uncond = False # disables cond/uncond batching that is enabled to save memory with --medvram or --lowvram
+xformers = False
+force_enable_xformers = False
+use_cpu = False
+
 parser = argparse.ArgumentParser()
-parser.add_argument("--config", type=str, default=os.path.join(sd_path, "configs/stable-diffusion/v1-inference.yaml"), help="path to config which constructs model",)
-parser.add_argument("--ckpt", type=str, default=sd_model_file, help="path to checkpoint of stable diffusion model; if specified, this checkpoint will be added to the list of checkpoints and loaded",)
-parser.add_argument("--ckpt-dir", type=str, default=None, help="Path to directory with stable diffusion checkpoints")
-parser.add_argument("--gfpgan-dir", type=str, help="GFPGAN directory", default=('./src/gfpgan' if os.path.exists('./src/gfpgan') else './GFPGAN'))
-parser.add_argument("--gfpgan-model", type=str, help="GFPGAN model file name", default=None)
-parser.add_argument("--no-half", action='store_true', help="do not switch the model to 16-bit floats")
-parser.add_argument("--no-half-vae", action='store_true', help="do not switch the VAE model to 16-bit floats")
-parser.add_argument("--embeddings-dir", type=str, default=os.path.join(script_path, 'embeddings'), help="embeddings directory for textual inversion (default: embeddings)")
-parser.add_argument("--hypernetwork-dir", type=str, default=os.path.join(models_path, 'hypernetworks'), help="hypernetwork directory")
-parser.add_argument("--medvram", action='store_true', help="enable stable diffusion model optimizations for sacrificing a little speed for low VRM usage")
-parser.add_argument("--lowvram", action='store_true', help="enable stable diffusion model optimizations for sacrificing a lot of speed for very low VRM usage")
-parser.add_argument("--lowram", action='store_true', help="load stable diffusion checkpoint weights to VRAM instead of RAM")
-parser.add_argument("--always-batch-cond-uncond", action='store_true', help="disables cond/uncond batching that is enabled to save memory with --medvram or --lowvram")
-parser.add_argument("--unload-gfpgan", action='store_true', help="does not do anything.")
-parser.add_argument("--precision", type=str, help="evaluate at this precision", choices=["full", "autocast"], default="autocast")
+# parser.add_argument("--gfpgan-dir", type=str, help="GFPGAN directory", default=('./src/gfpgan' if os.path.exists('./src/gfpgan') else './GFPGAN'))
+# parser.add_argument("--gfpgan-model", type=str, help="GFPGAN model file name", default=None)
 parser.add_argument("--device-id", type=str, help="Select the default CUDA device to use (export CUDA_VISIBLE_DEVICES=0,1,etc might be needed before)", default=None)
 
 # parser.add_argument("--codeformer-models-path", type=str, help="Path to directory with codeformer model file(s).", default=os.path.join(models_path, 'Codeformer'))
@@ -41,39 +46,35 @@ parser.add_argument("--device-id", type=str, help="Select the default CUDA devic
 # parser.add_argument("--ldsr-models-path", type=str, help="Path to directory with LDSR model file(s).", default=os.path.join(models_path, 'LDSR'))
 # parser.add_argument("--deepdanbooru", action='store_true', help="enable deepdanbooru interrogator")
 
-parser.add_argument("--xformers", action='store_true', help="enable xformers for cross attention layers")
-parser.add_argument("--force-enable-xformers", action='store_true', help="enable xformers for cross attention layers regardless of whether the checking code thinks you can run it; do not make bug reports if this fails to work")
-parser.add_argument("--opt-split-attention", action='store_true', help="force-enables Doggettx's cross-attention layer optimization. By default, it's on for torch cuda.")
-parser.add_argument("--opt-split-attention-invokeai", action='store_true', help="force-enables InvokeAI's cross-attention layer optimization. By default, it's on when cuda is unavailable.")
-parser.add_argument("--opt-split-attention-v1", action='store_true', help="enable older version of split attention optimization that does not consume all the VRAM it can find")
-parser.add_argument("--opt-channelslast", action='store_true', help="change memory type for stable diffusion to channels last")
-parser.add_argument("--disable-opt-split-attention", action='store_true', help="force-disables cross-attention layer optimization")
-parser.add_argument("--use-cpu", nargs='+',choices=['all', 'sd', 'interrogate', 'gfpgan', 'bsrgan', 'esrgan', 'scunet', 'codeformer'], help="use CPU as torch device for specified modules", default=[], type=str.lower)
-
-parser.add_argument('--vae-path', type=str, help='Path to Variational Autoencoders model', default=None)
+# parser.add_argument("--opt-split-attention", action='store_true', help="force-enables Doggettx's cross-attention layer optimization. By default, it's on for torch cuda.")
+# parser.add_argument("--opt-split-attention-invokeai", action='store_true', help="force-enables InvokeAI's cross-attention layer optimization. By default, it's on when cuda is unavailable.")
+# parser.add_argument("--opt-split-attention-v1", action='store_true', help="enable older version of split attention optimization that does not consume all the VRAM it can find")
+# parser.add_argument("--opt-channelslast", action='store_true', help="change memory type for stable diffusion to channels last")
+# parser.add_argument("--disable-opt-split-attention", action='store_true', help="force-disables cross-attention layer optimization")
 parser.add_argument("--disable-safe-unpickle", action='store_true', help="disable checking pytorch models for malicious code", default=False)
 
 cmd_opts = parser.parse_args()
 
 # Hardware and optimizations
 # ----------------------------------------
-devices.device, devices.device_interrogate, devices.device_gfpgan, devices.device_bsrgan, devices.device_esrgan, devices.device_scunet, devices.device_codeformer = \
-(devices.cpu if any(y in cmd_opts.use_cpu for y in [x, 'all']) else devices.get_optimal_device() for x in ['sd', 'interrogate', 'gfpgan', 'bsrgan', 'esrgan', 'scunet', 'codeformer'])
+# devices.device, devices.device_interrogate, devices.device_gfpgan, devices.device_bsrgan, devices.device_esrgan, devices.device_scunet, devices.device_codeformer = \
+# (devices.cpu if any(y in use_cpu for y in [x, 'all']) else devices.get_optimal_device() for x in ['sd', 'interrogate', 'gfpgan', 'bsrgan', 'esrgan', 'scunet', 'codeformer'])
 
+devices.device = devices.get_optimal_device()
 device = devices.device
-weight_load_location = None if cmd_opts.lowram else "cpu"
+weight_load_location = None if lowram else "cpu"
 
-batch_cond_uncond = cmd_opts.always_batch_cond_uncond or not (cmd_opts.lowvram or cmd_opts.medvram)
-parallel_processing_allowed = not cmd_opts.lowvram and not cmd_opts.medvram
+batch_cond_uncond = always_batch_cond_uncond or not (lowvram or medvram)
+parallel_processing_allowed = not lowvram and not medvram
 xformers_available = False
 
 
 # Hypernetworks
 # ----------------------------------------
-os.makedirs(cmd_opts.hypernetwork_dir, exist_ok=True)
+os.makedirs(hypernetwork_dir, exist_ok=True)
 
 from hypernetworks import hypernetwork
-hypernetworks = hypernetwork.list_hypernetworks(cmd_opts.hypernetwork_dir)
+hypernetworks = hypernetwork.list_hypernetworks(hypernetwork_dir)
 loaded_hypernetwork = None
 
 def reload_hypernetworks():
