@@ -71,10 +71,10 @@ class StyleDatabase:
         else:
             p.prompt = self.apply_styles_to_prompt(p.prompt, p.styles)
 
-        if isinstance(p.negative_prompt, list):
-            p.negative_prompt = [self.apply_negative_styles_to_prompt(prompt, p.styles) for prompt in p.negative_prompt]
+        if isinstance(p.promptneg, list):
+            p.promptneg = [self.apply_negative_styles_to_prompt(prompt, p.styles) for prompt in p.promptneg]
         else:
-            p.negative_prompt = self.apply_negative_styles_to_prompt(p.negative_prompt, p.styles)
+            p.promptneg = self.apply_negative_styles_to_prompt(p.promptneg, p.styles)
 
     def save_styles(self, path: str) -> None:
         # Write to temporary file first, so we don't nuke the file if something goes wrong

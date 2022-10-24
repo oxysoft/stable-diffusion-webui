@@ -49,9 +49,9 @@ class SDJob_txt2img(SDJob):
             x = self.create_random_tensors([opt_C, self.height // opt_f, self.width // opt_f],
                                            seeds=seeds,
                                            subseeds=subseeds,
-                                           subseed_strength=self.subseed.strength,
-                                           seed_resize_from_h=self.subseed.resize_from_h,
-                                           seed_resize_from_w=self.subseed.resize_from_w,
+                                           subseed_strength=self.subseed_strength,
+                                           seed_resize_from_h=self.seed_resize_from_h,
+                                           seed_resize_from_w=self.seed_resize_from_w,
                                            p=self)
             samples = sampler.sample(self, x, conditioning, unconditional_conditioning)
             return samples
@@ -59,9 +59,9 @@ class SDJob_txt2img(SDJob):
         x = self.create_random_tensors([opt_C, self.firstphase_height // opt_f, self.firstphase_width // opt_f],
                                        seeds=seeds,
                                        subseeds=subseeds,
-                                       subseed_strength=self.subseed.strength,
-                                       seed_resize_from_h=self.subseed.resize_from_h,
-                                       seed_resize_from_w=self.subseed.resize_from_w,
+                                       subseed_strength=self.subseed_strength,
+                                       seed_resize_from_h=self.seed_resize_from_h,
+                                       seed_resize_from_w=self.seed_resize_from_w,
                                        p=self)
         samples = sampler.sample(self, x, conditioning, unconditional_conditioning)
 

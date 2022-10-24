@@ -303,7 +303,7 @@ def train_embedding(embedding_name, learn_rate, batch_size, data_root, log_direc
 
             if preview_from_txt2img:
                 p.prompt = preview_prompt
-                p.negative_prompt = preview_negative_prompt
+                p.promptneg = preview_negative_prompt
                 p.steps = preview_steps
                 p.sampler_index = preview_sampler_index
                 p.cfg = preview_cfg_scale

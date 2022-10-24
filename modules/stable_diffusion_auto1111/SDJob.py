@@ -4,9 +4,8 @@ import numpy as np
 import torch
 from PIL import Image
 
-from core import devicelib
+from core import devicelib, options
 from core.jobs import JobParams
-from modules.stable_diffusion_auto1111.SDSubseedParams import SDSubseedParams
 from modules.stable_diffusion_auto1111.SDUtil import slerp
 
 
@@ -18,8 +17,11 @@ class SDJob(JobParams):
                  prompt: str = "",
                  promptneg="",
                  seed: int = -1,
-                 subseed: SDSubseedParams = None,
                  steps: int = 22,
+                 subseed=-1,
+                 subseed_strength=0,
+                 seed_resize_from_h=-1,
+                 seed_resize_from_w=-1,
                  cfg: float = 7,
                  sampler="euler-a",
                  ddim_discretize: bool = 'uniform',  # or quad
@@ -54,13 +56,10 @@ class SDJob(JobParams):
         self.quantize: bool = quantize
         self.model = model
         self.enable_batch_seed = False
-
-        if subseed is None:
-            self.subseed = SDSubseedParams()
-            self.subseed.seed = -1
-            self.subseed.strength = 0
-            self.subseed.resize_from_h = 0
-            self.subseed.resize_from_w = 0
+        self.subseed = subseed
+        self.subseed_strength = subseed_strength
+        self.seed_resize_from_w = seed_resize_from_w
+        self.seed_resize_from_h = seed_resize_from_h
 
         # self.prompt_for_display: str = None
         # self.n_iter: int = n_iter
@@ -162,8 +161,8 @@ class SDJob(JobParams):
             if sampler_noises is not None:
                 cnt = p.sampler.number_of_needed_noises(p)
 
-                if core.options.opts.eta_noise_seed_delta > 0:
-                    torch.manual_seed(seed + core.options.opts.eta_noise_seed_delta)
+                if options.opts.eta_noise_seed_delta > 0:
+                    torch.manual_seed(seed + options.opts.eta_noise_seed_delta)
 
                 for j in range(cnt):
                     sampler_noises[j].append(devicelib.randn_without_seed(tuple(noise_shape)))

@@ -5,7 +5,10 @@ import threading
 
 import modules
 from core.plugins import Plugin
+from modules.stable_diffusion_auto1111.SDJob import SDJob
+from modules.stable_diffusion_auto1111.SDJob_txt2img import SDJob_txt2img
 from modules.stable_diffusion_auto2222 import modelloader, sd_models, txt2img, shared, sd_samplers
+from modules.stable_diffusion_auto2222.processing import process_images, StableDiffusionProcessingTxt2Img
 from modules.stable_diffusion_auto2222.shared import hypernetworks
 
 queue_lock = threading.Lock()
@@ -44,4 +47,4 @@ class StableDiffusionPlugin2(Plugin):
         sd_models.list_models()
 
     def txt2img(self, prompt:str):
-        return modules.stable_diffusion_auto2222.txt2img.txt2img(prompt)
+        process_images(StableDiffusionProcessingTxt2Img(prompt=prompt))

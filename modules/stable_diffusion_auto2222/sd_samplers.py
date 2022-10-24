@@ -17,17 +17,17 @@ import shared as shared
 SamplerData = namedtuple('SamplerData', ['name', 'constructor', 'aliases', 'options'])
 
 samplers_k_diffusion = [
-    ('Euler a', 'sample_euler_ancestral', ['k_euler_a'], {}),
-    ('Euler', 'sample_euler', ['k_euler'], {}),
-    ('LMS', 'sample_lms', ['k_lms'], {}),
-    ('Heun', 'sample_heun', ['k_heun'], {}),
-    ('DPM2', 'sample_dpm_2', ['k_dpm_2'], {}),
-    ('DPM2 a', 'sample_dpm_2_ancestral', ['k_dpm_2_a'], {}),
-    ('DPM fast', 'sample_dpm_fast', ['k_dpm_fast'], {}),
-    ('DPM adaptive', 'sample_dpm_adaptive', ['k_dpm_ad'], {}),
-    ('LMS Karras', 'sample_lms', ['k_lms_ka'], {'scheduler': 'karras'}),
-    ('DPM2 Karras', 'sample_dpm_2', ['k_dpm_2_ka'], {'scheduler': 'karras'}),
-    ('DPM2 a Karras', 'sample_dpm_2_ancestral', ['k_dpm_2_a_ka'], {'scheduler': 'karras'}),
+    ('Euler a', 'sample_euler_ancestral', ['euler-a', 'k_euler_a'], {}),
+    ('Euler', 'sample_euler', ['euler', 'k_euler'], {}),
+    ('LMS', 'sample_lms', ['lms', 'k_lms'], {}),
+    ('Heun', 'sample_heun', ['heun', 'k_heun'], {}),
+    ('DPM2', 'sample_dpm_2', ['dpm2', 'k_dpm_2'], {}),
+    ('DPM2 a', 'sample_dpm_2_ancestral', ['dpm2_a', 'k_dpm_2_a'], {}),
+    ('DPM fast', 'sample_dpm_fast', ['dpm_fast', 'k_dpm_fast'], {}),
+    ('DPM adaptive', 'sample_dpm_adaptive', ['dpm_ad', 'k_dpm_ad'], {}),
+    ('LMS Karras', 'sample_lms', ['lms_ka', 'k_lms_ka'], {'scheduler': 'karras'}),
+    ('DPM2 Karras', 'sample_dpm_2', ['dpm2_ka', 'k_dpm_2_ka'], {'scheduler': 'karras'}),
+    ('DPM2 a Karras', 'sample_dpm_2_ancestral', ['dpm2_a_ka', 'k_dpm_2_a_ka'], {'scheduler': 'karras'}),
 ]
 
 samplers_data_k_diffusion = [
@@ -45,6 +45,15 @@ all_samplers = [
 samplers = []
 samplers_for_img2img = []
 
+def create_sampler(sampler_id, model):
+    for s in all_samplers:
+        if sampler_id == s.name or sampler_id in s.aliases:
+            sampler = s.constructor(model)
+            sampler.config = s
+
+            return sampler
+
+    raise ValueError(f'Unknown sampler {sampler_id}')
 
 def create_sampler_with_index(list_of_configs, index, model):
     config = list_of_configs[index]
@@ -477,4 +486,3 @@ class KDiffusionSampler:
         }, disable=False, callback=self.callback_state, **extra_params_kwargs))
 
         return samples
-
