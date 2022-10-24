@@ -27,15 +27,15 @@ def txt2img(prompt: str,
             width: int = 512,
             enable_hr: bool = False,
             denoising_strength: float = 0.5,
-            firstphase_width: int = 512,
-            firstphase_height: int = 512,
+            firstphase_width: int = 0,
+            firstphase_height: int = 0,
             *args):
     p = StableDiffusionProcessingTxt2Img(
             sd_model=shared.sd_model,
-            outpath_samples=opts.outdir_samples or opts.outdir_txt2img_samples,
-            outpath_grids=opts.outdir_grids or opts.outdir_txt2img_grids,
+            # outpath_samples=opts.outdir_samples or opts.outdir_txt2img_samples,
+            # outpath_grids=opts.outdir_grids or opts.outdir_txt2img_grids,
             prompt=prompt,
-            styles=[prompt_style, prompt_style2],
+            # styles=[prompt_style, prompt_style2],
             negative_prompt=negative_prompt,
             seed=seed,
             subseed=subseed,
@@ -47,10 +47,10 @@ def txt2img(prompt: str,
             batch_size=batch_size,
             n_iter=n_iter,
             steps=steps,
-            cfg_scale=cfg_scale,
+            cfg=cfg_scale,
             width=width,
             height=height,
-            restore_faces=restore_faces,
+            # restore_faces=restore_faces,
             tiling=tiling,
             enable_hr=enable_hr,
             denoising_strength=denoising_strength if enable_hr else None,
@@ -60,18 +60,9 @@ def txt2img(prompt: str,
 
     p.script_args = args
 
-    if cmd_opts.enable_console_prompts:
-        print(f"\ntxt2img: {prompt}", file=shared.progress_print_out)
+    # if cmd_opts.enable_console_prompts:
+    #     print(f"\ntxt2img: {prompt}", file=shared.progress_print_out)
 
     processed = process_images(p)
 
-    shared.total_tqdm.clear()
-
-    generation_info_js = processed.js()
-    if opts.samples_log_stdout:
-        print(generation_info_js)
-
-    if opts.do_not_show_images:
-        processed.images = []
-
-    return processed.images, generation_info_js
+    return processed.images

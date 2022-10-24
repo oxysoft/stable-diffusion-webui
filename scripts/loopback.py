@@ -70,7 +70,7 @@ class Script(scripts.Plugin):
 
             grid = images.image_grid(history, rows=1)
             if opts.grid_save:
-                images.save_image(grid, p.outpath_grids, "grid", initial_seed, p.prompt, opts.grid_format, info=info, short_filename=not opts.grid_extended_filename, grid=True, p=p)
+                images.save_image(grid, p.outpath_grids, "grid", initial_seed, p.prompt, opts.grid_format, metadata=info, short_filename=not opts.grid_extended_filename, grid=True, p=p)
 
             grids.append(grid)
             all_images += history

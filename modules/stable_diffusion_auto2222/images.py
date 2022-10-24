@@ -294,7 +294,7 @@ def apply_filename_pattern(x, p, seed, prompt):
 
     if p is not None:
         x = x.replace("[steps]", str(p.steps))
-        x = x.replace("[cfg]", str(p.cfg_scale))
+        x = x.replace("[cfg]", str(p.cfg))
         x = x.replace("[width]", str(p.width))
         x = x.replace("[height]", str(p.height))
         x = x.replace("[styles]", sanitize_filename_part(", ".join([x for x in p.styles if not x == "None"]) or "None", replace_spaces=False))
@@ -353,7 +353,7 @@ def get_next_sequence_number(path, basename):
     return result + 1
 
 
-def save_image(image, path, basename, seed=None, prompt=None, extension='png', info=None, short_filename=False, no_prompt=False, grid=False, pnginfo_section_name='parameters', p=None, existing_info=None, forced_filename=None, suffix="", save_to_dirs=None):
+def save_image(image, path, basename, seed=None, prompt=None, extension='png', metadata=None, short_filename=False, no_prompt=False, grid=False, pnginfo_section_name='parameters', p=None, existing_info=None, forced_filename=None, suffix="", save_to_dirs=None):
     '''Save an image.
 
     Args:
@@ -368,7 +368,7 @@ def save_image(image, path, basename, seed=None, prompt=None, extension='png', i
             Image file extension, default is `png`.
         pngsectionname (`str`):
             Specify the name of the section which `info` will be saved in.
-        info (`str` or `PngImagePlugin.iTXt`):
+        metadata (`str` or `PngImagePlugin.iTXt`):
             PNG info chunks.
         existing_info (`dict`):
             Additional PNG info. `existing_info == {pngsectionname: info, ...}`
@@ -398,14 +398,14 @@ def save_image(image, path, basename, seed=None, prompt=None, extension='png', i
 
     file_decoration = apply_filename_pattern(file_decoration, p, seed, prompt) + suffix
 
-    if extension == 'png' and opts.enable_pnginfo and info is not None:
+    if extension == 'png' and opts.enable_pnginfo and metadata is not None:
         pnginfo = PngImagePlugin.PngInfo()
 
         if existing_info is not None:
             for k, v in existing_info.items():
                 pnginfo.add_text(k, str(v))
 
-        pnginfo.add_text(pnginfo_section_name, info)
+        pnginfo.add_text(pnginfo_section_name, metadata)
     else:
         pnginfo = None
 
@@ -435,13 +435,13 @@ def save_image(image, path, basename, seed=None, prompt=None, extension='png', i
     def exif_bytes():
         return piexif.dump({
             "Exif": {
-                piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(info or "", encoding="unicode")
+                piexif.ExifIFD.UserComment: piexif.helper.UserComment.dump(metadata or "", encoding="unicode")
             },
         })
 
     if extension.lower() in ("jpg", "jpeg", "webp"):
         image.save(fullfn, quality=opts.jpeg_quality)
-        if opts.enable_pnginfo and info is not None:
+        if opts.enable_pnginfo and metadata is not None:
             piexif.insert(exif_bytes(), fullfn)
     else:
         image.save(fullfn, quality=opts.jpeg_quality, pnginfo=pnginfo)
@@ -457,13 +457,13 @@ def save_image(image, path, basename, seed=None, prompt=None, extension='png', i
             image = image.resize((image.width * target_side_length // image.height, target_side_length), LANCZOS)
 
         image.save(fullfn_without_extension + ".jpg", quality=opts.jpeg_quality)
-        if opts.enable_pnginfo and info is not None:
+        if opts.enable_pnginfo and metadata is not None:
             piexif.insert(exif_bytes(), fullfn_without_extension + ".jpg")
 
-    if opts.save_txt and info is not None:
+    if opts.save_txt and metadata is not None:
         txt_fullfn = f"{fullfn_without_extension}.txt"
         with open(txt_fullfn, "w", encoding="utf8") as file:
-            file.write(info + "\n")
+            file.write(metadata + "\n")
     else:
         txt_fullfn = None
 

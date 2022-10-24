@@ -18,7 +18,6 @@ def get_optimal_device():
         import shared
 
         device_id = shared.cmd_opts.device_id
-
         if device_id is not None:
             cuda_device = f"cuda:{device_id}"
             return torch.device(cuda_device)

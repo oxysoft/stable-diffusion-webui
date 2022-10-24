@@ -306,7 +306,7 @@ def train_embedding(embedding_name, learn_rate, batch_size, data_root, log_direc
                 p.negative_prompt = preview_negative_prompt
                 p.steps = preview_steps
                 p.sampler_index = preview_sampler_index
-                p.cfg_scale = preview_cfg_scale
+                p.cfg = preview_cfg_scale
                 p.seed = preview_seed
                 p.width = preview_width
                 p.height = preview_height

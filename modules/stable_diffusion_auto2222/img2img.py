@@ -1,59 +1,48 @@
-import math
 import os
-import sys
-import traceback
 
-import numpy as np
 from PIL import Image, ImageOps, ImageChops
 
-import devices
 from processing import Processed, StableDiffusionProcessingImg2Img, process_images
-from shared import opts, state
+from shared import opts
 import shared as shared
 import processing as processing
-import images as images
 
 
-def process_batch(p, input_dir, output_dir, args):
-    processing.fix_seed(p)
-
-    images = [file for file in [os.path.join(input_dir, x) for x in os.listdir(input_dir)] if os.path.isfile(file)]
-
-    print(f"Will process {len(images)} images, creating {p.n_iter * p.batch_size} new images for each.")
-
-    save_normally = output_dir == ''
-
-    p.do_not_save_grid = True
-    p.do_not_save_samples = not save_normally
-
-    state.job_count = len(images) * p.n_iter
-
-    for i, image in enumerate(images):
-        state.job = f"{i+1} out of {len(images)}"
-        if state.skipped:
-            state.skipped = False
-
-        if state.interrupted:
-            break
-
-        img = Image.open(image)
-        p.init_images = [img] * p.batch_size
-
-        if proc is None:
-            proc = process_images(p)
-
-        for n, processed_image in enumerate(proc.images):
-            filename = os.path.basename(image)
-
-            if n > 0:
-                left, right = os.path.splitext(filename)
-                filename = f"{left}-{n}{right}"
-
-            if not save_normally:
-                processed_image.save(os.path.join(output_dir, filename))
-
-
-def img2img(mode: int, prompt: str, negative_prompt: str, prompt_style: str, prompt_style2: str, init_img, init_img_with_mask, init_img_inpaint, init_mask_inpaint, mask_mode, steps: int, sampler_index: int, mask_blur: int, inpainting_fill: int, restore_faces: bool, tiling: bool, n_iter: int, batch_size: int, cfg_scale: float, denoising_strength: float, seed: int, subseed: int, subseed_strength: float, seed_resize_from_h: int, seed_resize_from_w: int, seed_enable_extras: bool, height: int, width: int, resize_mode: int, inpaint_full_res: bool, inpaint_full_res_padding: int, inpainting_mask_invert: int, img2img_batch_input_dir: str, img2img_batch_output_dir: str, *args):
+def img2img(mode: int,
+            prompt: str,
+            negative_prompt: str,
+            prompt_style: str,
+            prompt_style2: str,
+            init_img,
+            init_img_with_mask,
+            init_img_inpaint,
+            init_mask_inpaint,
+            mask_mode,
+            steps: int,
+            sampler_index: int,
+            mask_blur: int,
+            inpainting_fill: int,
+            restore_faces: bool,
+            tiling: bool,
+            n_iter: int,
+            batch_size: int,
+            cfg_scale: float,
+            denoising_strength: float,
+            seed: int,
+            subseed: int,
+            subseed_strength: float,
+            seed_resize_from_h: int,
+            seed_resize_from_w: int,
+            seed_enable_extras: bool,
+            height: int,
+            width: int,
+            resize_mode: int,
+            inpaint_full_res: bool,
+            inpaint_full_res_padding: int,
+            inpainting_mask_invert: int,
+            img2img_batch_input_dir: str,
+            img2img_batch_output_dir: str,
+            *args):
     is_inpaint = mode == 1
     is_batch = mode == 2
 
@@ -116,19 +105,38 @@ def img2img(mode: int, prompt: str, negative_prompt: str, prompt_style: str, pro
     if is_batch:
         assert not shared.cmd_opts.hide_ui_dir_config, "Launched with --hide-ui-dir-config, batch img2img disabled"
 
-        process_batch(p, img2img_batch_input_dir, img2img_batch_output_dir, args)
+        processing.fix_seed(p)
+        images1 = [file for file in [os.path.join(img2img_batch_input_dir, x1) for x1 in os.listdir(img2img_batch_input_dir)] if os.path.isfile(file)]
+
+        print(f"Will process {len(images1)} images, creating {p.n_iter * p.batch_size} new images for each.")
+        save_normally = img2img_batch_output_dir == ''
+        p.do_not_save_grid = True
+        p.do_not_save_samples = not save_normally
+        for i, image1 in enumerate(images1):
+            # if state.skipped:
+            #     state.skipped = False
+
+            # if state.interrupted:
+            #     break
+
+            img = Image.open(image1)
+            p.init_images = [img] * p.batch_size
+
+            proc = process_images(p)
+            for n, processed_image in enumerate(proc.images):
+                filename = os.path.basename(image1)
+
+                if n > 0:
+                    left, right = os.path.splitext(filename)
+                    filename = f"{left}-{n}{right}"
+
+                if not save_normally:
+                    processed_image.save(os.path.join(img2img_batch_output_dir, filename))
 
         processed = Processed(p, [], p.seed, "")
     else:
         processed = process_images(p)
 
-    shared.total_tqdm.clear()
+    return processed.images
 
-    generation_info_js = processed.js()
-    if opts.samples_log_stdout:
-        print(generation_info_js)
 
-    if opts.do_not_show_images:
-        processed.images = []
-
-    return processed.images, generation_info_js

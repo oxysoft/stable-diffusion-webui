@@ -255,7 +255,7 @@ class Script(scripts.Plugin):
         res = Processed(p, [img], initial_seed_and_info[0], initial_seed_and_info[1])
 
         if opts.samples_save:
-            images.save_image(img, p.outpath_samples, "", res.seed, p.prompt, opts.grid_format, info=res.info, p=p)
+            images.save_image(img, p.outpath_samples, "", res.seed, p.prompt, opts.grid_format, metadata=res.info, p=p)
 
         return res
 

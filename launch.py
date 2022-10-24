@@ -124,11 +124,11 @@ if __name__ == "__main__":
     #                           ))
 
     # plugins.get("stable_diffusion_auto1111").txt2img()
-    # plugins.get("stable_diffusion_auto2222").load()
-    plugins.get("stable_diffusion_auto1111").load()
+    plugins.get("stable_diffusion_auto2222").load()
+    # plugins.get("stable_diffusion_auto1111").load()
 
-    # plugins.get("stable_diffusion_auto2222").txt2img("Beautiful painting of an ultra contorted landscape by Greg Ruktowsky and Salvador Dali. airbrushed, 70s prog rock album cover, psychedelic, elaborate, complex")
-    plugins.get("stable_diffusion_auto1111").txt2img(SDJob_txt2img(prompt="Beautiful painting of an ultra contorted landscape by Greg Ruktowsky and Salvador Dali. airbrushed, 70s prog rock album cover, psychedelic, elaborate, complex"))
+    plugins.get("stable_diffusion_auto2222").txt2img("Beautiful painting of an ultra contorted landscape by Greg Ruktowsky and Salvador Dali. airbrushed, 70s prog rock album cover, psychedelic, elaborate, complex")
+    # plugins.get("stable_diffusion_auto1111").txt2img(SDJob_txt2img(prompt="Beautiful painting of an ultra contorted landscape by Greg Ruktowsky and Salvador Dali. airbrushed, 70s prog rock album cover, psychedelic, elaborate, complex"))
 
     if cargs.dry:
         print("Exiting because of --dry argument")
