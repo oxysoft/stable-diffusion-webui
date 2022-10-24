@@ -177,8 +177,8 @@ def load_model_weights(model, checkpoint_info):
         if not shared.no_half:
             model.half()
 
-        devices.dtype = torch.float32 if shared.no_half else torch.float16
-        devices.dtype_vae = torch.float32 if shared.no_half or shared.no_half_vae else torch.float16
+        shared.dtype = torch.float32 if shared.no_half else torch.float16
+        shared.dtype_vae = torch.float32 if shared.no_half or shared.no_half_vae else torch.float16
 
         vae_file = os.path.splitext(checkpoint_file)[0] + ".vae.pt"
 
@@ -191,7 +191,7 @@ def load_model_weights(model, checkpoint_info):
             vae_dict = {k: v for k, v in vae_ckpt["state_dict"].items() if k[0:4] != "loss" and k not in vae_ignore_keys}
             model.first_stage_model.load_state_dict(vae_dict)
 
-        model.first_stage_model.to(devices.dtype_vae)
+        model.first_stage_model.to(shared.dtype_vae)
 
         checkpoints_loaded[checkpoint_info] = model.state_dict().copy()
         while len(checkpoints_loaded) > shared.opts.sd_checkpoint_cache:
@@ -270,7 +270,7 @@ def reload_model_weights(sd_model, info=None):
     # script_callbacks.model_loaded_callback(sd_model)
 
     if not shared.lowvram and not shared.medvram:
-        sd_model.to(devices.device)
+        sd_model.to(shared.device)
 
     print(f"Weights loaded.")
     return sd_model
