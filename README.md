@@ -1,1 +1,1 @@
-# Moved https://github.com/stablecore-ai/stable-core ➡
+# Moved ➡ https://github.com/stablecore-ai/stable-core
