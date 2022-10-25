@@ -45,7 +45,7 @@ The rest is all good,
 
 ## Roadmap:
 1. ~Core backend components (server, jobs, plugins) to a usable state.~
-2. Run the StableDiffusionPlugin txt2img job from CLI
+2. ~Run the StableDiffusionPlugin txt2img job from CLI~
 3. Write a UI to run the job in and see progress.
 4. Port some upscalers so we can see the job workflow in action.
 
