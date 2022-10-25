@@ -102,7 +102,7 @@ if __name__ == "__main__":
     for d in paths.repodir.iterdir():
         sys.path.insert(0, d.as_posix())
 
-    sys.path.insert(0, (rootdir / "repositories" / "stable_diffusion" / "ldm").as_posix())
+    sys.path.insert(0, (rootdir / "plugin-repos" / "stable_diffusion" / "ldm").as_posix())
 
     # TODO git clone modules from a user list
     plugins.load_all(paths.plugindir)

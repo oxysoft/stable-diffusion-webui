@@ -84,7 +84,7 @@ def apply_checkpoint(p, x, xs):
     info = plugins.sd_models.get_closest(x)
     if info is None:
         raise RuntimeError(f"Unknown checkpoint: {x}")
-    plugins.sd_models.load_into_standalone(shared.sd_model, info)
+    plugins.sd_models.load_into_standalone(shared.sdmodel, info)
 
 
 def confirm_checkpoints(p, xs):
@@ -97,7 +97,7 @@ def apply_hypernetwork(p, x, xs):
     if x.lower() in ["", "none"]:
         name = None
     else:
-        name = hypernetwork.find_closest_hypernetwork_name(x)
+        name = hypernetwork.find_hypernetwork(x)
         if not name:
             raise RuntimeError(f"Unknown hypernetwork: {x}")
     hypernetwork.load_hypernetwork(name)
@@ -107,7 +107,7 @@ def confirm_hypernetworks(p, xs):
     for x in xs:
         if x.lower() in ["", "none"]:
             continue
-        if not hypernetwork.find_closest_hypernetwork_name(x):
+        if not hypernetwork.find_hypernetwork(x):
             raise RuntimeError(f"Unknown hypernetwork: {x}")
 
 
@@ -347,7 +347,7 @@ class Script(scripts.Plugin):
             images.save_image(processed.images[0], p.outpath_grids, "xy_grid", prompt=p.prompt, seed=processed.seed, grid=True, p=p)
 
         # restore checkpoint in case it was changed by axes
-        plugins.sd_models.load_into_standalone(shared.sd_model)
+        plugins.sd_models.load_into_standalone(shared.sdmodel)
 
         hypernetwork.load_hypernetwork(opts.sd_hypernetwork)
 

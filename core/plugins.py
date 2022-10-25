@@ -31,7 +31,7 @@ class Plugin:
         """
         from core import jobs
         j = jobs.new_job(self.id, name, jobparams)
-        j.plugin_id = self.id
+        j.plugid = self.id
         return j
     # The title of the script. This is what will be displayed in the dropdown menu.
     def title(self):

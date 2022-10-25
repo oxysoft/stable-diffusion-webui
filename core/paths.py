@@ -5,7 +5,7 @@ from pathlib import Path
 # script_path = Path(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 rootdir = Path(__file__).resolve().parent.parent
 modeldir = rootdir / "models"
-repodir = rootdir / "repositories"
+repodir = rootdir / "plugin-repos"
 plugindir = rootdir / "modules"
 embeddingdir = rootdir / "embeddings"
 

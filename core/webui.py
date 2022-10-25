@@ -73,16 +73,16 @@ def list_jobs():
 
 @socketio.on('is_job_processing')
 def is_job_processing(id):
-    return jsonify(jobs.is_processing(id))
+    return jsonify(jobs.is_running(id))
 
 @socketio.on('abort_job')
 def abort_job(id):
-    if jobs.is_processing(id):
+    if jobs.is_running(id):
         jobs.queue.abort(id)
 
 @socketio.on('is_processing')
 def is_processing():
-    return jobs.is_any_processing()
+    return jobs.any_running()
 
 def extract_dict(obj, *names):
     return {x: getattr(obj, x) for x in names}

@@ -158,7 +158,7 @@ def draw_grid_annotations(im, width, height, hor_texts, ver_texts):
 
     for texts, allowed_width in zip(hor_texts + ver_texts, [width] * len(hor_texts) + [pad_left] * len(ver_texts)):
         items = [] + texts
-        texts.clear()
+        texts.hide()
 
         for line in items:
             wrapped = wrap(calc_d, line.text, fnt, allowed_width)
@@ -295,10 +295,10 @@ def apply_filename_pattern(x, p, seed, prompt):
         x = x.replace("[styles]", sanitize_filename_part(", ".join([x for x in p.styles if not x == "None"]) or "None", replace_spaces=False))
         x = x.replace("[sampler]", sanitize_filename_part(samplers[p.sampler_index].name, replace_spaces=False))
 
-    x = x.replace("[model_hash]", getattr(p, "sd_model_hash", shared.sd_model.hash))
+    x = x.replace("[model_hash]", getattr(p, "sd_model_hash", shared.sdmodel.hash))
     x = x.replace("[date]", datetime.date.today().isoformat())
     x = x.replace("[datetime]", datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
-    x = x.replace("[job_timestamp]", getattr(p, "job_timestamp", shared.state.job_timestamp))
+    x = x.replace("[job_timestamp]", getattr(p, "job_timestamp", shared.state_text.job_timestamp))
 
     # Apply [prompt] at last. Because it may contain any replacement word.^M
     if prompt is not None:

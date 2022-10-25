@@ -12,68 +12,62 @@ from core.printing import progress_print_out
 
 
 class JobParams:
+    """
+    Parameters for a job
+    """
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        self.job: Job | None = None
 
-    @abstractmethod
-    def get_plugin_impl(self):
-        # TODO it's probably much better to do this in the plugin and then iterate plugins to see which one can handle this jobparams
-        return None, None
-
-    @property
-    def plugin(self):
-        return self.job.plugin
-
-    def on_start(self, job):
-        pass
-
+class JobData:
+    def __init__(self):
+        self.prompt = None
+        self.latent = None
+        self.image = None
 
 class Job:
     def __init__(self, plugin_id: str, plugin_func: str, parameters: JobParams):
-        self.job_id = str(uuid.uuid4())
-        self.plugin_id = plugin_id
-        self.plugin_func = plugin_func
+        self.jobid = str(uuid.uuid4())
+        self.plugid = plugin_id
+        self.plugfunc = plugin_func
+
         # State
         self.p: JobParams = parameters
+        self.data = JobData()
         if self.p is not None:
             self.p.job = self
-
-        self.state: str = ""
-        self.progress: float = 0
-        self.aborted: bool = False
-        self.skipped: bool = False
-        self.step: int = 0
-        self.stepmax: int = 0
-        self.latent = None
-        self.image = None
+        self.state_text: str = ""
+        self.progress_norm: float = 0
+        self.progress_i: int = 0
+        self.progress_max: int = 0
+        self.request_abort: bool = False
+        self.request_skip: bool = False
         self.timestamp: str = datetime.now().strftime("%Y%m%d%H%M%S")  # shouldn't this return job_timestamp?
 
     @property
     def plugin(self):
         import core.plugins
-        return core.plugins.get(self.plugin_id)
+        return core.plugins.get(self.plugid)
 
     @property
     def done(self):
-        return self.progress == 1
+        return self.progress_norm == 1
 
     def update(self, progress):
-        self.progress = progress
-        webui.emit('updated_job', self.job_id, self.progress)
+        self.progress_norm = progress
+        webui.emit('updated_job', self.jobid, self.progress_norm)
 
     def update_step(self, num=None):
         if num is None:
-            num = self.step + 1
+            num = self.progress_i + 1
 
-        self.step = num
-        self.progress = self.step / self.stepmax
+        self.progress_i = num
+        self.progress_norm = self.progress_i / self.progress_max
 
         tqdm_total.update()
         # if opts.show_progress_every_n_steps > 0:
 
     def __repr__(self):
-        return f"Job({self.job_id}, {self.plugin_id}, {self.plugin_func}, {self.progress})"
+        return f"Job({self.jobid}, {self.plugid}, {self.plugfunc}, {self.progress_norm})"
 
 
 class JobQueue:
@@ -89,7 +83,7 @@ class JobQueue:
         self.all.append(job)
         self.queued.append(job)
 
-        webui.emit('added_job', job.job_id)
+        webui.emit('added_job', job.jobid)
 
     def process(self, job):
         """
@@ -103,7 +97,7 @@ class JobQueue:
 
         job.p.on_start(job)
 
-        webui.emit('started_job', job.job_id)
+        webui.emit('started_job', job.jobid)
 
     def cancel(self, job):
         if job not in self.queued:
@@ -112,7 +106,7 @@ class JobQueue:
         self.queued.remove(job)
         self.all.remove(job)
 
-        webui.emit('cancelled_job', job.job_id)
+        webui.emit('cancelled_job', job.jobid)
 
     def finish(self, job):
         if job not in self.processing:
@@ -121,7 +115,7 @@ class JobQueue:
         self.processing.remove(job)
         self.all.remove(job)
 
-        webui.emit('finished_job', job.job_id)
+        webui.emit('finished_job', job.jobid)
 
     def abort(self, job):
         if job not in self.processing:
@@ -130,9 +124,9 @@ class JobQueue:
         self.processing.remove(job)
         self.all.remove(job)
 
-        job.aborted = True
+        job.request_abort = True
 
-        webui.emit('aborted_job', job.job_id)
+        webui.emit('aborted_job', job.jobid)
 
     def remove(self, job):
         if job not in self.all:
@@ -146,14 +140,14 @@ class JobQueue:
 
         self.all.remove(job)
 
-        webui.emit('removed_job', job.job_id)
+        webui.emit('removed_job', job.jobid)
 
 
 class JobTQDM:
     def __init__(self):
         self.tqdm = None
 
-    def create(self):
+    def _create(self):
         self.tqdm = tqdm(desc="Total progress",
                          total=queue.all,
                          position=1,
@@ -165,7 +159,7 @@ class JobTQDM:
             return
 
         if self.tqdm is None:
-            self.create()
+            self._create()
 
         self.tqdm.update()
 
@@ -174,31 +168,31 @@ class JobTQDM:
         if not opts.multiple_tqdm or cargs.disable_console_progressbars:
             return
         if self.tqdm is None:
-            self.create()
+            self._create()
         self.tqdm.total = new_total
 
-    def clear(self):
+    def hide(self):
         if self.tqdm is not None:
             self.tqdm.close()
             self.tqdm = None
 
 
-def get(job_id):
+def get(jobid):
     """
     Get a job by id.
     The job must be queued or processing.
     """
-    if isinstance(job_id, Job):
-        return job_id
+    if isinstance(jobid, Job):
+        return jobid
 
     for job in queue.all:
-        if job.job_id == job_id:
+        if job.jobid == jobid:
             return job
     raise Exception("Job not found")
 
 
-def finish(job_id):
-    job = get(job_id)
+def finish(jobid):
+    job = get(jobid)
 
     job.update(1)
     queue.finish(job)
@@ -238,7 +232,7 @@ total_created = 0
 tqdm_total = JobTQDM()
 
 
-def is_processing(id):
+def is_running(id):
     """
     Check if a job is processing (by ID)
     """
@@ -247,5 +241,5 @@ def is_processing(id):
         return j in queue.processing
 
 
-def is_any_processing():
+def any_running():
     return len(queue.processing) > 0

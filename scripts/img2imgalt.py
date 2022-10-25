@@ -17,13 +17,13 @@ def find_noise_for_image(p, cond, uncond, cfg_scale, steps):
     x = p.init_latent
 
     s_in = x.new_ones([x.shape[0]])
-    dnw = K.external.CompVisDenoiser(shared.sd_model)
+    dnw = K.external.CompVisDenoiser(shared.sdmodel)
     sigmas = dnw.get_sigmas(steps).flip(0)
 
-    shared.state.sampling_steps = steps
+    shared.state_text.sampling_steps = steps
 
     for i in trange(1, len(sigmas)):
-        shared.state.sampling_step += 1
+        shared.state_text.sampling_step += 1
 
         x_in = torch.cat([x] * 2)
         sigma_in = torch.cat([sigmas[i] * s_in] * 2)
@@ -32,7 +32,7 @@ def find_noise_for_image(p, cond, uncond, cfg_scale, steps):
         c_out, c_in = [K.utils.append_dims(k, x_in.ndim) for k in dnw.get_scalings(sigma_in)]
         t = dnw.sigma_to_t(sigma_in)
 
-        eps = shared.sd_model.apply_model(x_in * c_in, t, cond=cond_in)
+        eps = shared.sdmodel.apply_model(x_in * c_in, t, cond=cond_in)
         denoised_uncond, denoised_cond = (x_in + eps * c_out).chunk(2)
 
         denoised = denoised_uncond + (denoised_cond - denoised_uncond) * cfg_scale
@@ -48,7 +48,7 @@ def find_noise_for_image(p, cond, uncond, cfg_scale, steps):
         del x_in, sigma_in, cond_in, c_out, c_in, t,
         del eps, denoised_uncond, denoised_cond, denoised, d, dt
 
-    shared.state.nextjob()
+    shared.state_text.nextjob()
 
     return x / x.std()
 
@@ -61,13 +61,13 @@ def find_noise_for_image_sigma_adjustment(p, cond, uncond, cfg_scale, steps):
     x = p.init_latent
 
     s_in = x.new_ones([x.shape[0]])
-    dnw = K.external.CompVisDenoiser(shared.sd_model)
+    dnw = K.external.CompVisDenoiser(shared.sdmodel)
     sigmas = dnw.get_sigmas(steps).flip(0)
 
-    shared.state.sampling_steps = steps
+    shared.state_text.sampling_steps = steps
 
     for i in trange(1, len(sigmas)):
-        shared.state.sampling_step += 1
+        shared.state_text.sampling_step += 1
 
         x_in = torch.cat([x] * 2)
         sigma_in = torch.cat([sigmas[i - 1] * s_in] * 2)
@@ -80,7 +80,7 @@ def find_noise_for_image_sigma_adjustment(p, cond, uncond, cfg_scale, steps):
         else:
             t = dnw.sigma_to_t(sigma_in)
 
-        eps = shared.sd_model.apply_model(x_in * c_in, t, cond=cond_in)
+        eps = shared.sdmodel.apply_model(x_in * c_in, t, cond=cond_in)
         denoised_uncond, denoised_cond = (x_in + eps * c_out).chunk(2)
 
         denoised = denoised_uncond + (denoised_cond - denoised_uncond) * cfg_scale
@@ -99,7 +99,7 @@ def find_noise_for_image_sigma_adjustment(p, cond, uncond, cfg_scale, steps):
         del x_in, sigma_in, cond_in, c_out, c_in, t,
         del eps, denoised_uncond, denoised_cond, denoised, d, dt
 
-    shared.state.nextjob()
+    shared.state_text.nextjob()
 
     return x / sigmas[-1]
 
@@ -138,7 +138,7 @@ class Script(scripts.Plugin):
             if same_everything:
                 rec_noise = self.cache.noise
             else:
-                shared.state.job_count += 1
+                shared.state_text.job_count += 1
                 cond = p.model.get_learned_conditioning(p.batch_size * [original_prompt])
                 uncond = p.model.get_learned_conditioning(p.batch_size * [original_negative_prompt])
                 if sigma_adjustment:
