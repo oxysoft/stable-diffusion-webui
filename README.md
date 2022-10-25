@@ -78,33 +78,3 @@ Let me know if any other idea comes to mind
   * **CodeFormer:** img2img, port
   * **GFPGAN:** img2img, port
 * **MetaPlugin:** a plugin to string other plugins together, either with job macros or straight-up python. Could be done without a plugin but this allows all clients to automatically support these features.
-
-## Progress Report - 10/20
-
-- Server/Client design: ready. (really the the minimum)
-- Plugins: ready. See the contribution section above to see what's left
-- SD plugin: 75%, hypernetworks and textinv in refactoring.
-- UI: starting as soon as SD plugin is done.
-
-## Progress Report - 10/19
-
-The server now boots up and we can import the StableDiffusion plugin, and even instantiate it without crashing.
-The SD plugin processes are being refactored into the job system as JobParameters, which we can extend.
-The ProcessResult had too many values being copied around. Instead we are now keeping them in the JobParameters object. 
-
-So the plugin announces its job signatures like this: `name, function, input type, output type, parameter class`
-Each invocation function returns one or multiple jobs, and each job has an associated param object to configure it.
-
-A lot of useless UI shit mixed into the backend, we're mostly restarting from scratch for the gradio UI.
-
-AUTOMATIC1111 is still not responding and I don't know any other way to contact him so don't know if we have him on-board. The project must be renamed to stable-core or something not stable-diffusion related.
-
-## Progress Report - 10/18
-
-Current state of things if you wish to contribute and speed things up:
-
-- Many modules have been moved to plugins, they must be reviewed one by one and adapted into its Plugin class
-- Exorcise all reference of `shared`, CLI args, and options.
-- **Must figure out a real backend solution, not this gradio stuff**
-- We will probably rewrite the UI completely, old pieces can be adapted if necessary. Since we can move each plugin's UI into its own plugin file the UI will be a lot easier to improve in the future.
-- There are more modules remaining, some are just utility functions
